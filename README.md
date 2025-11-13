@@ -1,6 +1,6 @@
 # HttpInspector.AspNetCore
 
-[![NuGet](https://img.shields.io/nuget/v/HttpInspector.AspNetCore.svg?style=flat-square)](https://www.nuget.org/packages/HttpInspector.AspNetCore/) [![Actions Status](https://github.com/httpinspector/HttpInspector/actions/workflows/publish-nuget.yml/badge.svg)](https://github.com/httpinspector/HttpInspector/actions)
+[![NuGet](https://img.shields.io/nuget/v/HttpInspector.AspNetCore.svg?style=flat-square)](https://www.nuget.org/packages/HttpInspector.AspNetCore/) [![Actions Status](https://github.com/httpinspector/HttpInspector/actions/workflows/publish-nuget.yml/badge.svg)](https://github.com/play4uman/HttpInspector/actions)
 
 HttpInspector.AspNetCore turns any ASP.NET Core app into its own request/response inspector. Drop it in, capture structured JSON logs (headers, bodies, timings, correlation IDs), and browse traffic through a zero-config dashboard.
 
