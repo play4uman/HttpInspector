@@ -12,10 +12,15 @@
     <Description>Plug-and-play HTTP inspector middleware with embedded UI and file-backed storage for ASP.NET Core.</Description>
     <PackageTags>aspnetcore;logging;middleware;developer-tools</PackageTags>
     <Authors>HttpInspector</Authors>
-    <PackageProjectUrl>https://example.com/httpinspector</PackageProjectUrl>
-    <RepositoryUrl>https://example.com/httpinspector.git</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/httpinspector/HttpInspector</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/httpinspector/HttpInspector.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild Condition="'$(CI)'=='true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,9 +30,14 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="8.0.0" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="UI/Static/HttpInspector.html" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="" Link="README.md" />
   </ItemGroup>
 </Project>
