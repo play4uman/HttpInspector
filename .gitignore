@@ -361,4 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Ignore app log data
 *.jsonl
+App_Data/
