@@ -1,0 +1,87 @@
+name: Publish HttpInspector.AspNetCore
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      packageVersion:
+        description: 'Package version (e.g. 1.2.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  CONFIGURATION: Release
+  PROJECT_PATH: src/HttpInspector.AspNetCore/HttpInspector.AspNetCore.csproj
+  ARTIFACT_DIR: artifacts/nuget
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDKs
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            8.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Determine package version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.packageVersion }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+
+          if [ -z "$VERSION" ]; then
+            echo "Package version could not be determined" >&2
+            exit 1
+          fi
+
+          echo "package_version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build "$PROJECT_PATH" -c $CONFIGURATION -p:ContinuousIntegrationBuild=true --no-restore
+
+      - name: Pack
+        run: dotnet pack "$PROJECT_PATH" -c $CONFIGURATION -o $ARTIFACT_DIR -p:PackageVersion=${{ steps.version.outputs.package_version }} --no-build
+
+      - name: Push package to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "${NUGET_API_KEY}" ]; then
+            echo "NUGET_API_KEY secret is not configured" >&2
+            exit 1
+          fi
+          dotnet nuget push "$ARTIFACT_DIR"/*.nupkg -k "$NUGET_API_KEY" -s https://api.nuget.org/v3/index.json --skip-duplicate
+          if ls "$ARTIFACT_DIR"/*.snupkg 1> /dev/null 2>&1; then
+            dotnet nuget push "$ARTIFACT_DIR"/*.snupkg -k "$NUGET_API_KEY" -s https://api.nuget.org/v3/index.json --skip-duplicate
+          fi
+
+      - name: Publish to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet nuget push "$ARTIFACT_DIR"/*.nupkg -k "$GITHUB_TOKEN" -s https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --skip-duplicate
