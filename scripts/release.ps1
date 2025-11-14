@@ -28,8 +28,8 @@ if ($currentBranch -ne $DefaultBranch) {
 Invoke-Git fetch origin $DefaultBranch --tags
 Invoke-Git pull --ff-only origin $DefaultBranch
 
-$pending = (& git status --porcelain).Trim()
-if ($pending) {
+$pendingChanges = git status --porcelain
+if ($pendingChanges) {
     throw "Working tree has uncommitted changes. Commit or stash before releasing."
 }
 
