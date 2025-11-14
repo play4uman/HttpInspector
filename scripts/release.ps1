@@ -33,8 +33,8 @@ if ($pendingChanges) {
     throw "Working tree has uncommitted changes. Commit or stash before releasing."
 }
 
-$tags = (& git tag --list 'v*' | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } | Sort-Object { [version]($_.TrimStart('v')) } -Descending)
-if ($tags.Count -gt 0) {
+$tags = @(& git tag --list 'v*' | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } | Sort-Object { [version]($_.TrimStart('v')) } -Descending)
+if ($tags.Count -and $tags.Count -gt 0) {
     $latestTag = $tags[0]
     [void]($latestTag -match '^v(?<maj>\d+)\.(?<min>\d+)\.(?<patch>\d+)$')
     $major = [int]$Matches['maj']
@@ -52,8 +52,7 @@ if ($latestTag) {
     Write-Host "Latest tag: $latestTag"
 }
 
-$minor++
-$patch = 0
+$patch++
 $newTag = "v$major.$minor.$patch"
 Write-Host "Next tag: $newTag" -ForegroundColor Green
 
