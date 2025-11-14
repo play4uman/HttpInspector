@@ -15,12 +15,15 @@ HttpInspector.AspNetCore turns any ASP.NET Core app into its own request/respons
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
+
+// Register HTTP inspector dependecies 👇
 #if DEBUG
 builder.Services.AddHttpInspector();
 #endif
 
 var app = builder.Build();
 
+// Enable it as part of the ASP.NET Core pipeline 👇
 #if DEBUG
 app.UseHttpInspector();
 #endif
@@ -28,7 +31,7 @@ app.UseHttpInspector();
 app.Run();
 ```
 
-Visit `/http-inspector` to open the UI or GET `/http-inspector/stream?since=<timestamp>` for raw JSON events.
+That's it! You can now visit `/http-inspector` to open the UI or GET `/http-inspector/stream?since=<timestamp>` for raw JSON events.
 
 ### All Requests View
 ![Request Details](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.1.0/list_requests.png?raw=true)
