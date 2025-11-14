@@ -42,8 +42,10 @@ internal static class HttpInspectorEndpointRouteBuilderExtensions
         var uiEndpoint = endpoints.MapGet(basePath, (HttpInspectorUiRenderer renderer) => renderer.Render());
         ApplySecurity(uiEndpoint, options);
 
-        //var trailingUiEndpoint = endpoints.MapGet(basePath + "/", (HttpInspectorUiRenderer renderer) => renderer.Render());
-        //ApplySecurity(trailingUiEndpoint, options);
+        var assetsEndpoint = endpoints.MapGet($"{basePath}/assets/{{**assetPath}}", (
+            string assetPath,
+            HttpInspectorAssetProvider assetProvider) => assetProvider.Render(assetPath));
+        ApplySecurity(assetsEndpoint, options);
     }
 
     private static void ApplySecurity(RouteHandlerBuilder builder, HttpInspectorOptions options)
