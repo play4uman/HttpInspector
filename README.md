@@ -26,6 +26,12 @@ app.Run();
 
 Visit `/http-inspector` to open the UI or GET `/http-inspector/stream?since=<timestamp>` for raw JSON events.
 
+### All Requests View
+![Request Details](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.1.0/list_requests.png?raw=true)
+
+### Request details
+![Request Details](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.1.0/detail_requests.png?raw=true)
+
 ## Project Layout
 
 | Path | Description |
