@@ -35,6 +35,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="UI/Static/HttpInspector.html" />
+    <EmbeddedResource Include="UI/Static/HttpInspector.css" />
+    <EmbeddedResource Include="UI/Static/HttpInspector.js" />
   </ItemGroup>
 
   <ItemGroup>

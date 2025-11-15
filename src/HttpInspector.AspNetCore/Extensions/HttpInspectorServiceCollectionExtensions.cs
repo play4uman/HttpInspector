@@ -45,6 +45,7 @@ public static class HttpInspectorServiceCollectionExtensions
 
         services.TryAddSingleton<HttpInspectorPathFilter>();
         services.TryAddSingleton<HttpInspectorUiRenderer>();
+        services.TryAddSingleton<HttpInspectorAssetProvider>();
 
         services.TryAddSingleton<FileHttpInspectorStore>();
         services.TryAddSingleton<IHttpInspectorStore>(sp => sp.GetRequiredService<FileHttpInspectorStore>());
