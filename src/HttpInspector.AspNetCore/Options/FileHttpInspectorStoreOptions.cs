@@ -3,6 +3,11 @@ namespace HttpInspector.AspNetCore.Options;
 public class FileHttpInspectorStoreOptions
 {
     public string? FilePath { get; set; }
+
+    /// <summary>
+    /// The directory that contains HttpInspector log segments. Defaults to the app's App_Data folder.
+    /// </summary>
+    public string? DirectoryPath { get; set; }
         = null;
 
     /// <summary>
