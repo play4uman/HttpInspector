@@ -15,12 +15,16 @@ HttpInspector.AspNetCore turns any ASP.NET Core app into its own request/respons
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
-
+#if DEBUG
 builder.Services.AddHttpInspector();
+#endif
 
 var app = builder.Build();
 
+#if DEBUG
 app.UseHttpInspector();
+#endif
+
 app.Run();
 ```
 
