@@ -1,4 +1,4 @@
-﻿
+
         const state = {
             basePath: document.body.dataset.basePath,
             entries: new Map(),
@@ -6,7 +6,11 @@
             search: '',
             method: '',
             statusBucket: '',
-            expandedIds: new Set()
+            timeRange: {
+                from: { mode: 'all', relative: { days: 0, hours: 1, minutes: 0 }, absolute: null },
+                to: { mode: 'now', relative: { days: 0, hours: 0, minutes: 0 }, absolute: null }
+            },
+            queryRange: { since: null, until: null }
         };
         const EMPTY_BODY = '[empty]';
 
@@ -14,7 +18,39 @@
         const searchInput = document.getElementById('searchInput');
         const methodFilter = document.getElementById('methodFilter');
         const statusFilter = document.getElementById('statusFilter');
-        const refreshButton = document.getElementById('refreshButton');
+        const timeControls = {
+            from: {
+                button: document.getElementById('fromButton'),
+                label: document.getElementById('fromLabel'),
+                popover: document.getElementById('fromPopover'),
+                modeRadios: document.querySelectorAll('input[name="fromMode"]'),
+                relativeInputs: {
+                    days: document.getElementById('fromRelativeDays'),
+                    hours: document.getElementById('fromRelativeHours'),
+                    minutes: document.getElementById('fromRelativeMinutes')
+                },
+                absoluteInput: document.getElementById('fromAbsolute'),
+                applyButton: document.querySelector('[data-apply="from"]'),
+                cancelButton: document.querySelector('[data-cancel="from"]')
+            },
+            to: {
+                button: document.getElementById('toButton'),
+                label: document.getElementById('toLabel'),
+                popover: document.getElementById('toPopover'),
+                modeRadios: document.querySelectorAll('input[name="toMode"]'),
+                relativeInputs: {
+                    days: document.getElementById('toRelativeDays'),
+                    hours: document.getElementById('toRelativeHours'),
+                    minutes: document.getElementById('toRelativeMinutes')
+                },
+                absoluteInput: document.getElementById('toAbsolute'),
+                applyButton: document.querySelector('[data-apply="to"]'),
+                cancelButton: document.querySelector('[data-cancel="to"]')
+            }
+        };
+
+        let pollHandle = null;
+        let activePopover = null;
 
         searchInput.addEventListener('input', () => {
             state.search = searchInput.value.trim().toLowerCase();
@@ -29,6 +65,172 @@
             render();
         });
 
+        state.queryRange.since = computeSinceParam();
+        state.queryRange.until = computeUntilParam();
+        state.lastTimestamp = state.queryRange.since;
+
+        initTimeControls();
+        ensurePolling();
+        fetchEvents();
+
+
+        function initTimeControls() {
+            Object.entries(timeControls).forEach(([kind, config]) => {
+                config.button.addEventListener('click', () => togglePopover(kind));
+                config.cancelButton.addEventListener('click', () => closePopover());
+                config.applyButton.addEventListener('click', () => applyTimeSelection(kind));
+                config.modeRadios.forEach(radio => {
+                    radio.addEventListener('change', event => updateModePanels(kind, event.target.value));
+                });
+            });
+
+            updateTimeButtonLabels();
+        }
+
+        function togglePopover(kind) {
+            if (activePopover === kind) {
+                closePopover();
+                return;
+            }
+
+            closePopover();
+            activePopover = kind;
+            const config = timeControls[kind];
+            populatePopover(kind);
+            config.popover.classList.add('is-open');
+            document.addEventListener('click', handleDocumentClick, true);
+            document.addEventListener('keydown', handleEscapeKey, true);
+        }
+
+        function closePopover() {
+            if (!activePopover) {
+                return;
+            }
+
+            const config = timeControls[activePopover];
+            config.popover.classList.remove('is-open');
+            activePopover = null;
+            document.removeEventListener('click', handleDocumentClick, true);
+            document.removeEventListener('keydown', handleEscapeKey, true);
+        }
+
+        function handleDocumentClick(evt) {
+            if (!activePopover) {
+                return;
+            }
+
+            const config = timeControls[activePopover];
+            if (config.popover.contains(evt.target) || config.button.contains(evt.target)) {
+                return;
+            }
+
+            closePopover();
+        }
+
+        function handleEscapeKey(evt) {
+            if (evt.key === 'Escape') {
+                closePopover();
+            }
+        }
+
+        function populatePopover(kind) {
+            const config = timeControls[kind];
+            const selection = state.timeRange[kind];
+            config.modeRadios.forEach(radio => {
+                radio.checked = radio.value === selection.mode;
+            });
+
+            updateModePanels(kind, selection.mode);
+            const relative = selection.relative ?? { days: 0, hours: 0, minutes: 0 };
+            config.relativeInputs.days.value = relative.days ?? 0;
+            config.relativeInputs.hours.value = relative.hours ?? 0;
+            config.relativeInputs.minutes.value = relative.minutes ?? 0;
+            config.absoluteInput.value = formatDateInputValue(selection.absolute);
+        }
+
+        function updateModePanels(kind, mode) {
+            const config = timeControls[kind];
+            const panels = config.popover.querySelectorAll('[data-owner="' + kind + '"][data-panel]');
+            panels.forEach(panel => {
+                panel.classList.toggle('is-active', panel.dataset.panel === mode);
+            });
+        }
+
+        function applyTimeSelection(kind) {
+            const config = timeControls[kind];
+            const selectedMode = Array.from(config.modeRadios).find(r => r.checked)?.value ?? 'all';
+            const next = { ...state.timeRange[kind], mode: selectedMode };
+
+            if (selectedMode === 'relative') {
+                next.relative = readRelativeInputs(config.relativeInputs);
+                next.absolute = null;
+            } else if (selectedMode === 'absolute') {
+                const absoluteValue = parseDateInput(config.absoluteInput);
+                if (!absoluteValue) {
+                    config.absoluteInput.focus();
+                    return;
+                }
+
+                next.absolute = absoluteValue;
+            } else {
+                next.absolute = null;
+            }
+
+            state.timeRange[kind] = next;
+            closePopover();
+            onTimeRangeChanged();
+        }
+
+        function onTimeRangeChanged() {
+            state.entries.clear();
+            state.queryRange.since = computeSinceParam();
+            state.queryRange.until = computeUntilParam();
+            state.lastTimestamp = state.queryRange.since;
+            updateTimeButtonLabels();
+            render();
+            ensurePolling();
+            fetchEvents();
+        }
+
+        function updateTimeButtonLabels() {
+            timeControls.from.label.textContent = describeFromSelection();
+            timeControls.to.label.textContent = describeToSelection();
+            timeControls.to.button.classList.toggle('live', state.timeRange.to.mode === 'now');
+        }
+
+        function describeFromSelection() {
+            const from = state.timeRange.from;
+            if (from.mode === 'all') {
+                return 'All time';
+            }
+
+            if (from.mode === 'relative') {
+                return 'Now - ' + describeRelative(from.relative);
+            }
+
+            if (from.mode === 'absolute' && from.absolute) {
+                return formatDateLabel(from.absolute);
+            }
+
+            return 'All time';
+        }
+
+        function describeToSelection() {
+            const to = state.timeRange.to;
+            if (to.mode === 'now') {
+                return 'Now (live)';
+            }
+
+            if (to.mode === 'relative') {
+                return 'Now - ' + describeRelative(to.relative);
+            }
+
+            if (to.mode === 'absolute' && to.absolute) {
+                return formatDateLabel(to.absolute);
+            }
+
+            return 'Now';
+        }
         async function fetchEvents() {
             const url = new URL(window.location.origin + state.basePath + '/stream');
             if (state.lastTimestamp) {
@@ -54,6 +256,45 @@
             }
         }
 
+        function ensurePolling() {
+            const shouldStream = state.timeRange.to.mode === 'now';
+            if (shouldStream) {
+                if (pollHandle == null) {
+                    pollHandle = window.setInterval(fetchEvents, 4000);
+                }
+            } else if (pollHandle != null) {
+                window.clearInterval(pollHandle);
+                pollHandle = null;
+            }
+        }
+
+        function pruneEntries() {
+            if (state.timeRange.to.mode !== 'now') {
+                return;
+            }
+
+            const cutoffIso = computeLiveCutoff();
+            if (!cutoffIso) {
+                return;
+            }
+
+            const cutoff = Date.parse(cutoffIso);
+            if (Number.isNaN(cutoff)) {
+                return;
+            }
+
+            for (const [id, pair] of state.entries) {
+                const candidate = pair.response?.timestamp ?? pair.request?.timestamp;
+                if (!candidate) {
+                    continue;
+                }
+
+                const value = Date.parse(candidate);
+                if (!Number.isNaN(value) && value < cutoff) {
+                    state.entries.delete(id);
+                }
+            }
+        }
         function upsert(entry) {
             const id = entry.id;
             const existing = state.entries.get(id) ?? { id, request: null, response: null };
@@ -101,7 +342,7 @@
         function renderCard(pair) {
             const request = pair.request;
             const response = pair.response;
-            const status = response?.statusCode ?? '—';
+            const status = response?.statusCode ?? '�';
             const statusClass = `status-${getStatusBucket(status)}`;
             const durationText = response?.durationMs != null ? `${response.durationMs.toFixed(2)} ms` : 'pending';
             const reqBodyId = `${pair.id}-req-body`;
@@ -127,9 +368,9 @@
                         <span class="status-pill ${statusClass}">${status}</span>
                     </div>
                     <div class="mini-summary">
-                        ${renderSummaryItem('🗓', formatTimestamp(request?.timestamp))}
-                        ${renderSummaryItem('⏲', durationText)}
-                        ${renderSummaryItem('📡', request?.remoteIp ?? 'unknown')}
+                        ${renderSummaryItem('??', formatTimestamp(request?.timestamp))}
+                        ${renderSummaryItem('?', durationText)}
+                        ${renderSummaryItem('??', request?.remoteIp ?? 'unknown')}
                         ${renderSummaryItem('#', shortId.display, shortId.full)}
                     </div>
                     ${timeline}
@@ -416,3 +657,115 @@
         window.setInterval(fetchEvents, 4000);
         fetchEvents();
     
+
+
+
+
+
+        function computeSinceParam() {
+            const from = state.timeRange.from;
+            if (from.mode === 'relative') {
+                return relativeToIso(from.relative);
+            }
+            if (from.mode === 'absolute') {
+                return from.absolute;
+            }
+            return null;
+        }
+
+        function computeUntilParam() {
+            const to = state.timeRange.to;
+            if (to.mode === 'relative') {
+                return relativeToIso(to.relative);
+            }
+            if (to.mode === 'absolute') {
+                return to.absolute;
+            }
+            return null;
+        }
+
+        function computeLiveCutoff() {
+            const from = state.timeRange.from;
+            if (from.mode === 'relative') {
+                return relativeToIso(from.relative);
+            }
+            if (from.mode === 'absolute') {
+                return from.absolute;
+            }
+            return null;
+        }
+
+        function relativeToIso(relative) {
+            const days = Number(relative?.days ?? 0);
+            const hours = Number(relative?.hours ?? 0);
+            const minutes = Number(relative?.minutes ?? 0);
+            const totalMs = (((days * 24) + hours) * 60 + minutes) * 60 * 1000;
+            const target = new Date(Date.now() - totalMs);
+            return target.toISOString();
+        }
+
+        function readRelativeInputs(inputs) {
+            return {
+                days: clampNonNegative(inputs.days.value),
+                hours: clampNonNegative(inputs.hours.value, 23),
+                minutes: clampNonNegative(inputs.minutes.value, 59)
+            };
+        }
+
+        function clampNonNegative(value, max) {
+            const parsed = Number(value);
+            if (!Number.isFinite(parsed) || parsed < 0) {
+                return 0;
+            }
+            return max != null ? Math.min(parsed, max) : parsed;
+        }
+
+        function parseDateInput(input) {
+            if (!input.value) {
+                return null;
+            }
+            const date = new Date(input.value);
+            return Number.isNaN(date.getTime()) ? null : date.toISOString();
+        }
+
+        function formatDateInputValue(iso) {
+            if (!iso) {
+                return '';
+            }
+            const date = new Date(iso);
+            if (Number.isNaN(date.getTime())) {
+                return '';
+            }
+            const pad = value => String(value).padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        }
+
+        function describeRelative(relative) {
+            const days = Number(relative?.days ?? 0);
+            const hours = Number(relative?.hours ?? 0);
+            const minutes = Number(relative?.minutes ?? 0);
+            const parts = [];
+            if (days) {
+                parts.push(`${days}d`);
+            }
+            if (hours) {
+                parts.push(`${hours}h`);
+            }
+            if (minutes) {
+                parts.push(`${minutes}m`);
+            }
+            if (!parts.length) {
+                parts.push('0m');
+            }
+            return parts.join(' ');
+        }
+
+        function formatDateLabel(iso) {
+            try {
+                return new Date(iso).toLocaleString();
+            } catch {
+                return iso ?? '';
+            }
+        }
+
+

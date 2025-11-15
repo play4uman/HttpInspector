@@ -41,6 +41,23 @@ public static class HttpInspectorServiceCollectionExtensions
                     Directory.CreateDirectory(appData);
                     opts.FilePath = Path.Combine(appData, "httpinspector-log.jsonl");
                 }
+            })
+            .PostConfigure(opts =>
+            {
+                if (opts.MaxFileSizeBytes <= 0)
+                {
+                    opts.MaxFileSizeBytes = 5 * 1024 * 1024;
+                }
+
+                if (opts.RetainedFileCount < 0)
+                {
+                    opts.RetainedFileCount = 0;
+                }
+
+                if (opts.RetainedDays < 0)
+                {
+                    opts.RetainedDays = 0;
+                }
             });
 
         services.TryAddSingleton<HttpInspectorPathFilter>();

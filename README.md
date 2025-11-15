@@ -33,6 +33,24 @@ app.Run();
 
 That's it! You can now visit `/http-inspector` to open the UI or GET `/http-inspector/stream?since=<timestamp>` for raw JSON events.
 
+### Configuring log retention
+
+Configure rolling files without touching DI by passing a lambda to `UseHttpInspector`:
+
+```csharp
+app.UseHttpInspector(store =>
+{
+    store.MaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB per file
+    store.RetainedFileCount = 4;              // keep 4 rolled files
+    store.RetainedDays = 14;                  // purge anything older than two weeks
+});
+```
+
+Leave the lambda out to stick with the built-in defaults.
+
+HttpInspector writes JSONL segments with the entry timestamp baked into each filename (for example httpinspector-log-20250105T173000123Z.jsonl). When you pass a since query value the stream endpoint maps that timestamp directly to the right file and performs a binary search inside the JSONL document, so only the relevant portion of the log is read. You can optionally send an until parameter as well (for example /http-inspector/stream?since=2025-01-01T00:00:00Z&until=2025-01-02T00:00:00Z) to cap the range.
+
+
 ### All Requests View
 ![Request Details](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.1.0/list_requests.png?raw=true)
 
@@ -46,3 +64,6 @@ That's it! You can now visit `/http-inspector` to open the UI or GET `/http-insp
 | `src/HttpInspector.AspNetCore` | Production library: middleware, endpoints, options, store, and embedded UI. |
 | `samples/SampleApp` | Minimal API demonstrating the two-line integration. |
 | `tests/HttpInspector.AspNetCore.Tests` | xUnit/FluentAssertions specs covering options and storage.
+
+
+
