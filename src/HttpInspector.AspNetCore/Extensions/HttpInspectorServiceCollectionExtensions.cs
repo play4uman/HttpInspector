@@ -34,12 +34,19 @@ public static class HttpInspectorServiceCollectionExtensions
         services.AddOptions<FileHttpInspectorStoreOptions>()
             .Configure<IHostEnvironment>((opts, env) =>
             {
-                if (string.IsNullOrWhiteSpace(opts.FilePath))
+                var directory = opts.DirectoryPath;
+                if (string.IsNullOrWhiteSpace(directory))
                 {
                     var root = env.ContentRootPath ?? AppContext.BaseDirectory;
-                    var appData = Path.Combine(root, "App_Data");
-                    Directory.CreateDirectory(appData);
-                    opts.FilePath = Path.Combine(appData, "httpinspector-log.jsonl");
+                    directory = Path.Combine(root, "App_Data");
+                }
+
+                Directory.CreateDirectory(directory);
+                opts.DirectoryPath = directory;
+
+                if (string.IsNullOrWhiteSpace(opts.FilePath))
+                {
+                    opts.FilePath = Path.Combine(directory, FileHttpInspectorDefaults.DefaultFileName);
                 }
             })
             .PostConfigure(opts =>
@@ -71,3 +78,4 @@ public static class HttpInspectorServiceCollectionExtensions
         return services;
     }
 }
+

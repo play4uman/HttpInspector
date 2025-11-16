@@ -630,10 +630,17 @@ public sealed class FileHttpInspectorStore : IHttpInspectorStore, IHttpInspector
             return Path.GetFullPath(options.FilePath);
         }
 
+        if (!string.IsNullOrWhiteSpace(options.DirectoryPath))
+        {
+            var directory = Path.GetFullPath(options.DirectoryPath);
+            Directory.CreateDirectory(directory);
+            return Path.Combine(directory, FileHttpInspectorDefaults.DefaultFileName);
+        }
+
         var root = environment.ContentRootPath ?? AppContext.BaseDirectory;
         var appData = Path.Combine(root, "App_Data");
         Directory.CreateDirectory(appData);
-        return Path.Combine(appData, "httpinspector-log.jsonl");
+        return Path.Combine(appData, FileHttpInspectorDefaults.DefaultFileName);
     }
 
     private void ThrowIfDisposed()

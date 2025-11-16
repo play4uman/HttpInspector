@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using HttpInspector.AspNetCore.Endpoints;
 using HttpInspector.AspNetCore.Middleware;
 using HttpInspector.AspNetCore.Options;
@@ -52,8 +53,15 @@ public static class HttpInspectorApplicationBuilderExtensions
     {
         if (configureStore is not null)
         {
-            var storeOptions = app.ApplicationServices.GetRequiredService<IOptions<FileHttpInspectorStoreOptions>>().Value;
+            var storeOptions = app.ApplicationServices
+                .GetRequiredService<IOptions<FileHttpInspectorStoreOptions>>()
+                .Value;
+
+            var originalDirectory = storeOptions.DirectoryPath;
+            var originalFilePath = storeOptions.FilePath;
+
             configureStore(storeOptions);
+            AlignDirectoryOverrides(storeOptions, originalDirectory, originalFilePath);
         }
 
         var options = app.ApplicationServices.GetRequiredService<IOptions<HttpInspectorOptions>>().Value;
@@ -75,4 +83,48 @@ public static class HttpInspectorApplicationBuilderExtensions
             properties[EndpointsKey] = true;
         }
     }
+
+    private static void AlignDirectoryOverrides(
+        FileHttpInspectorStoreOptions options,
+        string? originalDirectory,
+        string? originalFilePath)
+    {
+        if (string.IsNullOrWhiteSpace(options.DirectoryPath))
+        {
+            return;
+        }
+
+        var normalizedDirectory = Path.GetFullPath(options.DirectoryPath);
+        var normalizedOriginalDirectory = string.IsNullOrWhiteSpace(originalDirectory)
+            ? null
+            : Path.GetFullPath(originalDirectory);
+
+        options.DirectoryPath = normalizedDirectory;
+
+        if (normalizedOriginalDirectory is not null &&
+            string.Equals(normalizedDirectory, normalizedOriginalDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var filePathCustomized = !string.IsNullOrWhiteSpace(options.FilePath) &&
+            !string.Equals(options.FilePath, originalFilePath, StringComparison.OrdinalIgnoreCase);
+
+        if (filePathCustomized)
+        {
+            return;
+        }
+
+        var fileName = !string.IsNullOrWhiteSpace(originalFilePath)
+            ? Path.GetFileName(originalFilePath)
+            : null;
+
+        if (string.IsNullOrEmpty(fileName))
+        {
+            fileName = FileHttpInspectorDefaults.DefaultFileName;
+        }
+
+        options.FilePath = Path.Combine(normalizedDirectory, fileName);
+    }
 }
+

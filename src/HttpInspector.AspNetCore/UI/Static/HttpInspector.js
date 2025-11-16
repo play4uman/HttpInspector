@@ -656,11 +656,6 @@
 
         window.setInterval(fetchEvents, 4000);
         fetchEvents();
-    
-
-
-
-
 
         function computeSinceParam() {
             const from = state.timeRange.from;
