@@ -25,11 +25,12 @@ internal static class HttpInspectorEndpointRouteBuilderExtensions
 
         var streamEndpoint = endpoints.MapGet(streamPath, async Task<IResult> (
             DateTimeOffset? since,
+            DateTimeOffset? until,
             IHttpInspectorStore store,
             CancellationToken cancellationToken) =>
         {
             var payload = new List<JsonElement>();
-            await foreach (var entry in store.GetEventsAsync(since, cancellationToken).ConfigureAwait(false))
+            await foreach (var entry in store.GetEventsAsync(since, until, cancellationToken).ConfigureAwait(false))
             {
                 payload.Add(entry);
             }
