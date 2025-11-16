@@ -1,5 +1,7 @@
 param(
     [string]$DefaultBranch = 'master',
+    [ValidateSet('Major', 'Minor', 'Patch')]
+    [string]$IncrementVersionPart,
     [switch]$DryRun
 )
 
@@ -52,7 +54,23 @@ if ($latestTag) {
     Write-Host "Latest tag: $latestTag"
 }
 
-$patch++
+if($IncrementVersionPart) {
+    switch ($IncrementVersionPart) {
+        'Major' {
+            $major++
+            $minor = 0
+            $patch = 0
+        }
+        'Minor' {
+            $minor++
+            $patch = 0
+        }
+        'Patch' {
+            $patch++
+        }
+    }
+}
+
 $newTag = "v$major.$minor.$patch"
 Write-Host "Next tag: $newTag" -ForegroundColor Green
 
