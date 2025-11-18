@@ -1539,20 +1539,14 @@
 
                     const entries = sortCalls(bucket);
                     const list = entries.map(renderOutgoingCall).join('');
-                    const summary = entries.length === 1 ? '1 call' : `${entries.length} calls`;
-
+                    const callNoun = entries.length === 1 ? 'call' : 'calls';
                     return `
-                        <section class="section-card outgoing-card">
-                            <div class="section-card-header">
-                                <div>
-                                    <p class="section-card-title">Outgoing HTTP calls</p>
-                                    <p class="section-card-subtitle">${summary}</p>
-                                </div>
-                            </div>
+                        <details class="io-stack" closed>
+                            <summary class="io-stack-summary">${entries.length} outgoing HTTP ${callNoun}</summary>
                             <div class="outgoing-call-list">
                                 ${list}
                             </div>
-                        </section>
+                        </details>
                     `;
                 });
 
@@ -1747,6 +1741,9 @@
                 }
                 .outgoing-card .child-call + .child-call {
                     margin-top: 0.6rem;
+                }
+                .outgoing-call-list {
+                        margin-top: 1rem;
                 }
                 .child-call {
                     border: 1px solid rgba(148, 163, 184, 0.25);
