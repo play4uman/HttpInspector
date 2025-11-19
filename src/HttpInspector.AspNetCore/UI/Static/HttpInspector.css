@@ -278,6 +278,10 @@
             margin-top: 0.8rem;
         }
 
+        .copy-url-btn {
+            margin-top: 0rem;
+        }
+
         .status-pill {
             padding: 0.3rem 0.85rem;
             border-radius: 999px;
@@ -691,12 +695,11 @@
 
 .child-call summary {
     cursor: pointer;
-    list-style: none;
     padding: 0.85rem 1rem;
 }
 
-.child-call summary::-webkit-details-marker {
-    display: none;
+.child-call .section-grid > details.section-wrapper > summary.section-title {
+    padding: 0;
 }
 
 .child-summary {
@@ -772,4 +775,29 @@
 
 .outgoing-orphan-card {
     border: 1px dashed rgba(148, 163, 184, 0.4);
+}
+
+.child-summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.child-summary-title {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.child-mini-summary {
+    margin: 0.6rem 0 0.4rem;
+}
+
+.outgoing-call-list > .io-stack {
+    margin-top: 0rem;
 }
