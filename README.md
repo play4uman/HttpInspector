@@ -1,29 +1,132 @@
 # HttpInspector.AspNetCore
 
-[![NuGet](https://img.shields.io/nuget/v/HttpInspector.AspNetCore.svg?style=flat-square)](https://www.nuget.org/packages/HttpInspector.AspNetCore/) [![Publish NuGet](https://github.com/play4uman/HttpInspector/actions/workflows/publish-nuget.yml/badge.svg)](https://github.com/play4uman/HttpInspector/actions)
+[![NuGet](https://img.shields.io/nuget/v/HttpInspector.AspNetCore.svg?style=flat-square)](https://www.nuget.org/packages/HttpInspector.AspNetCore/)
+[![Publish NuGet](https://github.com/play4uman/HttpInspector/actions/workflows/publish-nuget.yml/badge.svg)](https://github.com/play4uman/HttpInspector/actions)
 
-HttpInspector.AspNetCore turns any ASP.NET Core app into its own request/response inspector. Drop it in, capture structured JSON logs (headers, bodies, timings, correlation IDs), and browse traffic through a zero-config dashboard.
+## A Zero-Config Live HTTP Inspector for ASP.NET Core
 
--  **One-line wiring**: `AddHttpInspector` + `UseHttpInspector`, no controllers or static files required.
--  **Built-in UI**: `/http-inspector` hosts an auto-refreshing grid with filters, status coloring, and paired request/response views.
--  **Pluggable storage**: ships with a JSONL file store, but you can swap in your own `IHttpInspectorStore`.
--  **Production-friendly**: path filters, header redaction, optional auth, and SourceLink-enabled NuGet artifacts.
+**HttpInspector.AspNetCore** provides a built-in, real-time view of incoming and outgoing HTTP traffic inside any ASP.NET Core application.  
+It captures the complete request lifecycle and exposes it through a polished, embedded dashboard ideal for development, testing, QA, CI pipelines, and microservice debugging.
 
-> NuGet package: https://www.nuget.org/packages/HttpInspector.AspNetCore/
+It is **not** a replacement for ELK, Seq, or Application Insights.  
+Instead, it fills the gap between “no visibility at all” and “full observability stack,” and does so with almost no setup.
 
-## Quick Start
+---
+
+# 🖼 Dashboard Preview
+
+`![Dashboard Preview](./docs/images/v1.4.0/dashboard.png)`
+
+---
+
+# ✨ Features
+
+## 🎛 Real-time visual dashboard
+
+Access `/http-inspector` to see:
+
+- Live stream of captured HTTP traffic  
+- Expandable request/response panels  
+- Syntax-highlighted JSON bodies  
+- Duration bars & status color coding  
+- Free-text, method, and status filters  
+- Smooth, responsive UI designed for developers  
+
+`![Expanded Request](./docs/images/v1.4.0/request_details.png)`
+
+---
+
+## 🔗 Outgoing HTTP request tracking
+
+Automatically captures all `HttpClient` calls triggered during request processing.
+
+- Child → parent correlation  
+- URL, method, headers, body  
+- Response status and duration  
+- End-to-end request chain visibility  
+
+`![Outgoing Requests](./docs/images/v1.4.0/outgoing_request_tracking.png)`
+
+---
+
+## 🔁 Request replay built-in
+
+Replay any captured request directly:
+
+- Instant replay using internal loopback  
+- Copy as:
+  - `curl`
+  - PowerShell
+  - Raw HTTP format  
+- Replay results rendered directly in the UI  
+
+`![Replay Feature](./docs/images/v1.4.0/replay_request.png)`
+
+---
+
+## 🔒 Safe and configurable
+
+- Redact sensitive headers  
+- Truncate large request/response bodies  
+- Include/exclude specific paths  
+- Optional authentication for the dashboard  
+- Configurable retention and file rotation  
+
+*(Insert screenshot demonstrating redacted headers/config)*
+
+---
+
+## 📦 Extensible storage
+
+The storage layer is fully pluggable via:
+
+```csharp
+public interface IHttpInspectorStore
+{
+    IAsyncEnumerable<JsonElement> GetEventsAsync(DateTimeOffset? since, CancellationToken ct);
+}
+```
+
+Use the built-in JSONL file store or replace it with:
+
+- SQLite  
+- SQL databases  
+- Cloud blob storage  
+- In-memory ring buffers  
+- Custom backends  
+
+---
+
+## 🌐 Streaming API
+
+Query traffic programmatically:
+
+```
+/http-inspector/stream?since=<timestamp>
+```
+
+Returns an efficient JSON array with incremental fetch capability, ideal for:
+
+- automation  
+- custom dashboards  
+- debugging pipelines  
+- IDE integrations  
+
+---
+
+# 🚀 Quick Start
+
+Enable HttpInspector with **two lines**:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-// Register HTTP inspector dependecies 👇
 #if DEBUG
 builder.Services.AddHttpInspector();
 #endif
 
 var app = builder.Build();
 
-// Enable it as part of the ASP.NET Core pipeline 👇
 #if DEBUG
 app.UseHttpInspector();
 #endif
@@ -31,39 +134,38 @@ app.UseHttpInspector();
 app.Run();
 ```
 
-That's it! You can now visit `/http-inspector` to open the UI or GET `/http-inspector/stream?since=<timestamp>` for raw JSON events.
+Open the dashboard:
 
-### Configuring log retention
+```
+http://localhost:<port>/http-inspector
+```
 
-Configure rolling files without touching DI by passing a lambda to `UseHttpInspector`:
+---
+
+# ⚙️ Optional Configuration
 
 ```csharp
 app.UseHttpInspector(store =>
 {
-    store.MaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB per file
-    store.RetainedFileCount = 4;              // keep 4 rolled files
-    store.RetainedDays = 14;                  // purge anything older than two weeks
+    store.MaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
+    store.RetainedFileCount = 4;
+    store.RetainedDays = 14;
 });
 ```
 
-Leave the lambda out to stick with the built-in defaults.
+---
 
-HttpInspector writes JSONL segments with the entry timestamp baked into each filename (for example httpinspector-log-20250105T173000123Z.jsonl). When you pass a since query value the stream endpoint maps that timestamp directly to the right file and performs a binary search inside the JSONL document, so only the relevant portion of the log is read. You can optionally send an until parameter as well (for example /http-inspector/stream?since=2025-01-01T00:00:00Z&until=2025-01-02T00:00:00Z) to cap the range.
+# 💡 Philosophy
 
+HttpInspector focuses on being:
 
-### All Requests View
-![Request Details](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.1.0/list_requests.png?raw=true)
+- **Fast to enable**  
+- **Effortless to use**  
+- **Powerful for debugging**  
+- **Zero-infrastructure**  
+- **In-app and self-contained**  
 
-### Request details
-![Request Details](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.1.0/detail_requests.png?raw=true)
+It provides immediate clarity into what the API is doing **right now**, especially in complex request chains — all without the overhead of full observability stacks.
 
-## Project Layout
-
-| Path | Description |
-| --- | --- |
-| `src/HttpInspector.AspNetCore` | Production library: middleware, endpoints, options, store, and embedded UI. |
-| `samples/SampleApp` | Minimal API demonstrating the two-line integration. |
-| `tests/HttpInspector.AspNetCore.Tests` | xUnit/FluentAssertions specs covering options and storage.
-
-
+---
 
