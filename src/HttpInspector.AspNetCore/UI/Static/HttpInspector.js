@@ -550,7 +550,14 @@
             return `
                 <div class="replay-section">
                     <div class="replay-panel">
-                        <p class="replay-hint">Commands below are ready to copy or replay immediately.</p>
+                        <p class="replay-hint">Replay the request immediately.</p>
+                        <div class="replay-actions">
+                            <button type="button" class="replay-action primary" data-replay-now="${entryId}">Replay Now</button>
+                        </div>
+                        <div class="replay-result-card" data-replay-result="${entryId}">
+                            <p class="muted">Replay response will appear here.</p>
+                        </div>
+                        <p class="replay-hint">Or use a shell of your choice</p>
                         <div class="replay-command-card">
                             <header>cURL<button class="copy-btn" type="button" data-copy-command="${curlPreId}">Copy</button></header>
                             <pre class="${curlClass}" id="${curlPreId}" data-has-command="${curlCommand ? 'true' : 'false'}">${curlText}</pre>
@@ -558,12 +565,6 @@
                         <div class="replay-command-card">
                             <header>PowerShell<button class="copy-btn" type="button" data-copy-command="${psPreId}">Copy</button></header>
                             <pre class="${psClass}" id="${psPreId}" data-has-command="${psCommand ? 'true' : 'false'}">${psText}</pre>
-                        </div>
-                        <div class="replay-actions">
-                            <button type="button" class="replay-action primary" data-replay-now="${entryId}">Replay Now</button>
-                        </div>
-                        <div class="replay-result-card" data-replay-result="${entryId}">
-                            <p class="muted">Replay response will appear here.</p>
                         </div>
                     </div>
                 </div>
