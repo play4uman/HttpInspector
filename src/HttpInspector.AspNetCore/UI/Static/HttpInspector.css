@@ -275,6 +275,7 @@
             padding: 0.3rem 0.8rem;
             cursor: pointer;
             font-size: 0.8rem;
+            margin-top: 0.8rem;
         }
 
         .status-pill {
@@ -382,6 +383,7 @@
 
         .section-wrapper.request {
             background: rgba(15, 23, 42, 0.9);
+            margin-top: 0.8rem;
         }
 
         .section-wrapper.response {
@@ -630,6 +632,22 @@
         .replay-duration {
             font-size: 0.78rem;
             color: rgba(226, 232, 240, 0.8);
+        }
+
+        .replay-anchor {
+            color: #93c5fd;
+            text-decoration: none;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+        }
+
+        .replay-anchor:hover {
+            text-decoration: underline;
+        }
+
+        .replay-anchor.pending {
+            opacity: 0.6;
+            pointer-events: none;
         }
 
         .error-text {

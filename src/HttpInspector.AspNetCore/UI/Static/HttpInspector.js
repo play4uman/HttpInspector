@@ -1,4 +1,4 @@
-
+﻿
         const state = {
             basePath: document.body.dataset.basePath,
             entries: new Map(),
@@ -12,11 +12,13 @@
             },
             queryRange: { since: null, until: null },
             renderedCards: new Map(),
-            cardSignatures: new Map()
+            cardSignatures: new Map(),
+            replaySessions: new Map()
         };
         const EMPTY_BODY = '[empty]';
         const RESTRICTED_HEADER_NAMES = new Set(['host', 'connection', 'content-length', 'accept-encoding', 'cookie', 'origin', 'referer', 'user-agent', 'te', 'upgrade', 'upgrade-insecure-requests', 'proxy-connection', 'authority']);
         const RESTRICTED_HEADER_PREFIXES = ['sec-', 'proxy-', 'cf-'];
+        const REPLAY_CORRELATION_HEADER = 'X-HttpInspector-Replay-Id';
 
         const list = document.getElementById('logList');
         const searchInput = document.getElementById('searchInput');
@@ -302,8 +304,9 @@
         function upsert(entry) {
             const id = entry.id;
             const existing = state.entries.get(id) ?? { id, request: null, response: null };
-            if (entry.type === 'request') {
+            if (entry.type === "request") {
                 existing.request = entry;
+                handleReplayCorrelation(entry);
             } else {
                 existing.response = entry;
             }
@@ -402,11 +405,10 @@
             const timeline = renderTimeline(response?.durationMs);
             const requestRow = renderRow('REQUEST', 'request', request, reqBodyId, 'section-card request-card');
             const responseRow = renderRow('RESPONSE', 'response', response, resBodyId, `section-card response-card ${statusClass}`);
-            const technicalDetails = renderTechnicalDetails(pair.id, request, response);
             const replaySection = request ? renderReplaySection(pair.id, request) : '';
 
             return `
-                <article class="log-card" data-entry-id="${pair.id}">
+                <article class="log-card" id="entry-${pair.id}" data-entry-id="${pair.id}">
                     <div class="title-row">
                         <div class="title-left">
                             <div class="title-line">
@@ -418,9 +420,9 @@
                         <span class="status-pill ${statusClass}">${status}</span>
                     </div>
                     <div class="mini-summary">
-                        ${renderSummaryItem('??', formatTimestamp(request?.timestamp))}
-                        ${renderSummaryItem('?', durationText)}
-                        ${renderSummaryItem('??', request?.remoteIp ?? 'unknown')}
+                        ${renderSummaryItem('🗓', formatTimestamp(request?.timestamp))}
+                        ${renderSummaryItem('⏲', durationText)}
+                        ${renderSummaryItem('📡', request?.remoteIp ?? 'unknown')}
                         ${renderSummaryItem('#', shortId.display, shortId.full)}
                     </div>
                     ${timeline}
@@ -430,7 +432,6 @@
                             ${requestRow}
                             ${responseRow}
                         </div>
-                        ${technicalDetails}
                     </details>
                     <details class="io-stack" closed>
                         <summary class="io-stack-summary">Replay</summary>
@@ -484,6 +485,54 @@
                     toggle.setAttribute('aria-expanded', 'true');
                 }
             }
+        }
+
+
+        function generateReplaySessionId() {
+            if (window.crypto?.randomUUID) {
+                return window.crypto.randomUUID();
+            }
+            return 'replay-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        }
+
+        function registerReplaySession(sourceEntryId) {
+            const sessionId = generateReplaySessionId();
+            state.replaySessions.set(sessionId, { sourceEntryId, resolvedEntryId: null, result: null });
+            return sessionId;
+        }
+
+        function storeReplayResult(sessionId, result) {
+            const existing = state.replaySessions.get(sessionId);
+            if (!existing) {
+                state.replaySessions.set(sessionId, { sourceEntryId: result.entryId ?? null, resolvedEntryId: null, result });
+                updateReplayResultForSession(sessionId);
+                return;
+            }
+            existing.result = result;
+            state.replaySessions.set(sessionId, existing);
+            updateReplayResultForSession(sessionId);
+        }
+
+        function updateReplayResultForSession(sessionId) {
+            const session = state.replaySessions.get(sessionId);
+            if (!session?.result || !session.sourceEntryId) {
+                return;
+            }
+            showReplayResult(session.sourceEntryId, session.result);
+        }
+
+        function handleReplayCorrelation(entry) {
+            const replayId = getHeaderValue(entry.headers ?? {}, REPLAY_CORRELATION_HEADER);
+            if (!replayId) {
+                return;
+            }
+            const session = state.replaySessions.get(replayId);
+            if (!session) {
+                return;
+            }
+            session.resolvedEntryId = entry.id;
+            state.replaySessions.set(replayId, session);
+            updateReplayResultForSession(replayId);
         }
 
         function renderRow(label, type, entry, bodyId, cardClass) {
@@ -549,59 +598,22 @@
             const psClass = psCommand ? 'code-block' : 'code-block muted';
             return `
                 <div class="replay-section">
-                    <div class="replay-panel">
-                        <p class="replay-hint">Replay the request immediately.</p>
-                        <div class="replay-actions">
-                            <button type="button" class="replay-action primary" data-replay-now="${entryId}">Replay Now</button>
-                        </div>
-                        <div class="replay-result-card" data-replay-result="${entryId}">
-                            <p class="muted">Replay response will appear here.</p>
-                        </div>
-                        <p class="replay-hint">Or use a shell of your choice</p>
-                        <div class="replay-command-card">
-                            <header>cURL<button class="copy-btn" type="button" data-copy-command="${curlPreId}">Copy</button></header>
-                            <pre class="${curlClass}" id="${curlPreId}" data-has-command="${curlCommand ? 'true' : 'false'}">${curlText}</pre>
-                        </div>
-                        <div class="replay-command-card">
-                            <header>PowerShell<button class="copy-btn" type="button" data-copy-command="${psPreId}">Copy</button></header>
-                            <pre class="${psClass}" id="${psPreId}" data-has-command="${psCommand ? 'true' : 'false'}">${psText}</pre>
-                        </div>
+                    <p class="replay-hint">Replay this request directly or copy a command.</p>
+                    <div class="replay-actions">
+                        <button type="button" class="replay-action primary" data-replay-now="${entryId}">Replay Now</button>
+                    </div>
+                    <div class="replay-result-card" data-replay-result="${entryId}">
+                        <p class="muted">Replay response will appear here.</p>
+                    </div>
+                    <div class="replay-command-card">
+                        <header>cURL<button class="copy-btn" type="button" data-copy-command="${curlPreId}">Copy</button></header>
+                        <pre class="${curlClass}" id="${curlPreId}" data-has-command="${curlCommand ? 'true' : 'false'}">${curlText}</pre>
+                    </div>
+                    <div class="replay-command-card">
+                        <header>PowerShell<button class="copy-btn" type="button" data-copy-command="${psPreId}">Copy</button></header>
+                        <pre class="${psClass}" id="${psPreId}" data-has-command="${psCommand ? 'true' : 'false'}">${psText}</pre>
                     </div>
                 </div>
-            `;
-        }
-
-
-        function renderTechnicalDetails(entryId, request, response) {
-            const headers = request?.headers ?? {};
-            const pairs = [
-                ['User-Agent', getHeaderValue(headers, 'User-Agent')],
-                ['Referer', getHeaderValue(headers, 'Referer')],
-                ['Host', getHeaderValue(headers, 'Host')],
-                ['sec-ch-ua', getHeaderValue(headers, 'sec-ch-ua')],
-                ['Accept-Encoding', getHeaderValue(headers, 'Accept-Encoding')],
-                ['Priority', getHeaderValue(headers, 'Priority')],
-                ['Accept', getHeaderValue(headers, 'Accept')],
-                ['Content-Type', getHeaderValue(headers, 'Content-Type')],
-                ['Response-Length', response?.headers?.['Content-Length']]
-            ].filter(([, value]) => value);
-
-            if (!pairs.length) {
-                return '';
-            }
-
-            const grid = pairs.map(([label, value]) => `
-                <div class="drawer-item">
-                    <span class="drawer-label">${escapeHtml(label)}</span>
-                    <span class="drawer-value">${escapeHtml(value)}</span>
-                </div>
-            `).join('');
-
-            return `
-                <details class="drawer">
-                    <summary>More Details</summary>
-                    <div class="drawer-grid">${grid}</div>
-                </details>
             `;
         }
 
@@ -859,14 +871,18 @@
                     if (!entry?.request) {
                         return;
                     }
+                    const sessionId = registerReplaySession(entryId);
                     const originalLabel = button.textContent;
                     button.disabled = true;
                     button.textContent = 'Replaying...';
                     showReplayPending(entryId);
                     try {
-                        const result = await replayRequest(entry.request);
-                        showReplayResult(entryId, result);
+                        const result = await replayRequest(entry.request, sessionId);
+                        const enriched = { ...result, sessionId };
+                        storeReplayResult(sessionId, enriched);
+                        showReplayResult(entryId, enriched);
                     } catch (err) {
+                        state.replaySessions.delete(sessionId);
                         showReplayError(entryId, err);
                     } finally {
                         button.disabled = false;
@@ -890,7 +906,7 @@
         function showReplayResult(entryId, result) {
             const container = getReplayContainer(entryId);
             if (container) {
-                container.innerHTML = renderReplayResultContent(result);
+                container.innerHTML = renderReplayResultContent(entryId, result);
             }
         }
 
@@ -902,18 +918,41 @@
             }
         }
 
-        function renderReplayResultContent(result) {
-            const statusText = typeof result.status === 'number' ? String(result.status) : '-';
-            const statusStyle = typeof result.status === 'number' ? `status-${getStatusBucket(result.status)}` : 'status-na';
-            const duration = Number.isFinite(result.durationMs) ? `${result.durationMs.toFixed(2)} ms` : '-';
+        function renderReplayResultContent(entryId, result) {
+            const statusText =
+                typeof result.status === 'number' ? String(result.status) : '-';
+
+            // Use a class based on status if present, otherwise "status-na"
+            const statusClass =
+                typeof result.status === 'number'
+                    ? `status-${result.status}`
+                    : 'status-na';
+
+            const duration = Number.isFinite(result.durationMs)
+                ? `${result.durationMs.toFixed(2)} ms`
+                : '-';
+
             const safeUrl = escapeHtml(result.url ?? '');
             const headersHtml = renderHeaders(result.headers);
             const bodyText = escapeHtml(result.body ?? EMPTY_BODY);
+
+            const session = result.sessionId
+                ? state.replaySessions.get(result.sessionId)
+                : null;
+
+            const targetEntryId = session?.resolvedEntryId;
+
+            const anchorMarkup = targetEntryId
+                ? buildReplayAnchor(targetEntryId)
+                : '<span class="replay-anchor pending">Awaiting capture...</span>';
+
+            // IMPORTANT: put the template literal on the same line as return
             return `
                 <div class="replay-meta-row">
-                    <span class="status-pill ${statusStyle}">${escapeHtml(statusText)}</span>
+                    <span class="status-pill ${statusClass}">${statusText}</span>
                     <span class="replay-url" title="${safeUrl}">${safeUrl}</span>
-                    <span class="replay-duration">${escapeHtml(duration)}</span>
+                    <span class="replay-duration">${duration}</span>
+                    ${anchorMarkup}
                 </div>
                 <div class="replay-card">
                     <header>Headers</header>
@@ -926,11 +965,24 @@
             `;
         }
 
+        function buildReplayAnchor(entryId) {
+            const shortId = trimId(entryId);
+            const anchorLabel = shortId.display ?? entryId;
+        
+            // If we have a full ID, use it as the title; otherwise no title
+            const anchorTitle = shortId.full
+                ? ` title="${escapeForDoubleQuotes(shortId.full)}"`
+                : '';
+        
+            return `<a class="replay-anchor" href="#entry-${entryId}"${anchorTitle}>${anchorLabel}</a>`;
+        }
+
+
         function renderReplayErrorContent(message) {
             return `<p class="error-text">Replay failed: ${escapeHtml(message)}</p>`;
         }
 
-        async function replayRequest(request) {
+        async function replayRequest(request, sessionId) {
             if (!request) {
                 throw new Error('Request metadata missing.');
             }
@@ -945,6 +997,9 @@
                 headers[key] = value;
             });
             const body = normalizeReplayBody(request.body);
+            if (sessionId) {
+                headers[REPLAY_CORRELATION_HEADER] = sessionId;
+            }
             const options = { method, headers };
             if (body != null && method !== 'GET' && method !== 'HEAD') {
                 options.body = body;
@@ -963,7 +1018,8 @@
                 durationMs,
                 headers: replayHeaders,
                 body: bodyText,
-                url
+                url,
+                sessionId
             };
         }
 
