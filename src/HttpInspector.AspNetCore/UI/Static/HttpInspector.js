@@ -10,9 +10,13 @@
                 from: { mode: 'all', relative: { days: 0, hours: 1, minutes: 0 }, absolute: null },
                 to: { mode: 'now', relative: { days: 0, hours: 0, minutes: 0 }, absolute: null }
             },
-            queryRange: { since: null, until: null }
+            queryRange: { since: null, until: null },
+            renderedCards: new Map(),
+            cardSignatures: new Map()
         };
         const EMPTY_BODY = '[empty]';
+        const RESTRICTED_HEADER_NAMES = new Set(['host', 'connection', 'content-length', 'accept-encoding', 'cookie', 'origin', 'referer', 'user-agent', 'te', 'upgrade', 'upgrade-insecure-requests', 'proxy-connection', 'authority']);
+        const RESTRICTED_HEADER_PREFIXES = ['sec-', 'proxy-', 'cf-'];
 
         const list = document.getElementById('logList');
         const searchInput = document.getElementById('searchInput');
@@ -306,8 +310,8 @@
             state.entries.set(id, existing);
         }
 
+
         function render() {
-            const fragments = [];
             const search = state.search;
             const method = state.method;
             const bucket = state.statusBucket;
@@ -317,6 +321,7 @@
                 return -left;
             });
 
+            const filtered = [];
             for (const pair of items) {
                 const request = pair.request;
                 const response = pair.response;
@@ -332,17 +337,61 @@
                 if (search && !matchesSearch(request, response, search)) {
                     continue;
                 }
-                fragments.push(renderCard(pair));
+                filtered.push(pair);
             }
 
-            list.innerHTML = fragments.join('') || '<p class="muted">No events captured yet.</p>';
+            if (!filtered.length) {
+                state.renderedCards.clear();
+                state.cardSignatures.clear();
+                list.innerHTML = '<p class="muted" data-empty-message>No events captured yet.</p>';
+                return;
+            }
+
+            const placeholder = list.querySelector('[data-empty-message]');
+            if (placeholder) {
+                placeholder.remove();
+            }
+
+            const seen = new Set();
+            filtered.forEach((pair, index) => {
+                const cardId = pair.id;
+                seen.add(cardId);
+                const signature = computeCardSignature(pair);
+                let cardElement = state.renderedCards.get(cardId);
+
+                if (!cardElement) {
+                    cardElement = buildCardElement(pair);
+                    state.renderedCards.set(cardId, cardElement);
+                    state.cardSignatures.set(cardId, signature);
+                } else if (state.cardSignatures.get(cardId) !== signature) {
+                    const preservedState = captureCardState(cardElement);
+                    const updatedElement = buildCardElement(pair);
+                    applyCardState(updatedElement, preservedState);
+                    cardElement.replaceWith(updatedElement);
+                    cardElement = updatedElement;
+                    state.renderedCards.set(cardId, cardElement);
+                    state.cardSignatures.set(cardId, signature);
+                }
+
+                ensureCardPosition(cardElement, index);
+            });
+
+            for (const [cardId, element] of Array.from(state.renderedCards.entries())) {
+                if (!seen.has(cardId)) {
+                    element.remove();
+                    state.renderedCards.delete(cardId);
+                    state.cardSignatures.delete(cardId);
+                }
+            }
+
             wireCopyButtons();
         }
+
 
         function renderCard(pair) {
             const request = pair.request;
             const response = pair.response;
-            const status = response?.statusCode ?? '—';
+            const status = response?.statusCode ?? '-';
             const statusClass = `status-${getStatusBucket(status)}`;
             const durationText = response?.durationMs != null ? `${response.durationMs.toFixed(2)} ms` : 'pending';
             const reqBodyId = `${pair.id}-req-body`;
@@ -354,9 +403,10 @@
             const requestRow = renderRow('REQUEST', 'request', request, reqBodyId, 'section-card request-card');
             const responseRow = renderRow('RESPONSE', 'response', response, resBodyId, `section-card response-card ${statusClass}`);
             const technicalDetails = renderTechnicalDetails(pair.id, request, response);
+            const replaySection = request ? renderReplaySection(pair.id, request) : '';
 
             return `
-                <article class="log-card">
+                <article class="log-card" data-entry-id="${pair.id}">
                     <div class="title-row">
                         <div class="title-left">
                             <div class="title-line">
@@ -382,8 +432,58 @@
                         </div>
                         ${technicalDetails}
                     </details>
+                    <details class="io-stack" closed>
+                        <summary class="io-stack-summary">Replay</summary>
+                        ${replaySection}
+                    </details>
                 </article>
             `;
+        }
+
+
+        function buildCardElement(pair) {
+            const template = document.createElement('template');
+            template.innerHTML = renderCard(pair).trim();
+            return template.content.firstElementChild;
+        }
+
+        function ensureCardPosition(cardElement, index) {
+            const current = list.children[index];
+            if (current !== cardElement) {
+                list.insertBefore(cardElement, current || null);
+            }
+        }
+
+        function computeCardSignature(pair) {
+            return JSON.stringify({ request: pair.request ?? null, response: pair.response ?? null });
+        }
+
+        function captureCardState(cardElement) {
+            const detailStates = Array.from(cardElement.querySelectorAll('details')).map(detail => detail.open);
+            const replayPanel = cardElement.querySelector('[data-replay-panel]');
+            const replayOpen = replayPanel ? !replayPanel.hidden : false;
+            return { detailStates, replayOpen };
+        }
+
+        function applyCardState(cardElement, snapshot) {
+            if (!snapshot) {
+                return;
+            }
+            const details = cardElement.querySelectorAll('details');
+            details.forEach((detail, index) => {
+                if (snapshot.detailStates[index]) {
+                    detail.open = true;
+                }
+            });
+            if (snapshot.replayOpen) {
+                const panel = cardElement.querySelector('[data-replay-panel]');
+                const toggle = cardElement.querySelector('[data-replay-toggle]');
+                if (panel && toggle) {
+                    panel.hidden = false;
+                    panel.classList.add('is-open');
+                    toggle.setAttribute('aria-expanded', 'true');
+                }
+            }
         }
 
         function renderRow(label, type, entry, bodyId, cardClass) {
@@ -436,6 +536,40 @@
                 </div>
             `;
         }
+
+
+        function renderReplaySection(entryId, request) {
+            const curlPreId = `${entryId}-curl-command`;
+            const psPreId = `${entryId}-powershell-command`;
+            const curlCommand = request ? buildCurlCommand(request) : '';
+            const psCommand = request ? buildPowerShellCommand(request) : '';
+            const curlText = curlCommand ? escapeHtml(curlCommand) : 'Command unavailable';
+            const psText = psCommand ? escapeHtml(psCommand) : 'Command unavailable';
+            const curlClass = curlCommand ? 'code-block' : 'code-block muted';
+            const psClass = psCommand ? 'code-block' : 'code-block muted';
+            return `
+                <div class="replay-section">
+                    <div class="replay-panel">
+                        <p class="replay-hint">Commands below are ready to copy or replay immediately.</p>
+                        <div class="replay-command-card">
+                            <header>cURL<button class="copy-btn" type="button" data-copy-command="${curlPreId}">Copy</button></header>
+                            <pre class="${curlClass}" id="${curlPreId}" data-has-command="${curlCommand ? 'true' : 'false'}">${curlText}</pre>
+                        </div>
+                        <div class="replay-command-card">
+                            <header>PowerShell<button class="copy-btn" type="button" data-copy-command="${psPreId}">Copy</button></header>
+                            <pre class="${psClass}" id="${psPreId}" data-has-command="${psCommand ? 'true' : 'false'}">${psText}</pre>
+                        </div>
+                        <div class="replay-actions">
+                            <button type="button" class="replay-action primary" data-replay-now="${entryId}">Replay Now</button>
+                        </div>
+                        <div class="replay-result-card" data-replay-result="${entryId}">
+                            <p class="muted">Replay response will appear here.</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
 
         function renderTechnicalDetails(entryId, request, response) {
             const headers = request?.headers ?? {};
@@ -602,9 +736,14 @@
             });
         }
 
+
         function wireCopyButtons() {
             hydrateBodies();
             list.querySelectorAll('[data-copy-body]').forEach(button => {
+                if (button.dataset.copyBodyWired === 'true') {
+                    return;
+                }
+                button.dataset.copyBodyWired = 'true';
                 button.addEventListener('click', async () => {
                     const targetId = button.getAttribute('data-copy-body');
                     const target = document.getElementById(targetId);
@@ -623,6 +762,10 @@
             });
 
             list.querySelectorAll('[data-copy-url]').forEach(button => {
+                if (button.dataset.copyUrlWired === 'true') {
+                    return;
+                }
+                button.dataset.copyUrlWired = 'true';
                 button.addEventListener('click', async () => {
                     const encoded = button.getAttribute('data-copy-url');
                     const url = decodeURIComponent(encoded ?? '');
@@ -638,6 +781,10 @@
             });
 
             list.querySelectorAll('[data-copy-headers]').forEach(button => {
+                if (button.dataset.copyHeadersWired === 'true') {
+                    return;
+                }
+                button.dataset.copyHeadersWired = 'true';
                 button.addEventListener('click', async () => {
                     const payload = button.getAttribute('data-copy-headers');
                     try {
@@ -652,7 +799,306 @@
                     }
                 });
             });
+
+            list.querySelectorAll('[data-copy-command]').forEach(button => {
+                if (button.dataset.copyCommandWired === 'true') {
+                    return;
+                }
+                button.dataset.copyCommandWired = 'true';
+                button.addEventListener('click', async () => {
+                    const targetId = button.getAttribute('data-copy-command');
+                    const target = document.getElementById(targetId);
+                    if (!target || target.dataset.hasCommand !== 'true') {
+                        button.textContent = 'Unavailable';
+                        setTimeout(() => (button.textContent = 'Copy'), 1500);
+                        return;
+                    }
+                    try {
+                        await navigator.clipboard.writeText(target.textContent ?? '');
+                        button.textContent = 'Copied!';
+                        setTimeout(() => (button.textContent = 'Copy'), 1500);
+                    } catch {
+                        button.textContent = 'Failed';
+                        setTimeout(() => (button.textContent = 'Copy'), 1500);
+                    }
+                });
+            });
+
+            wireReplayInteractions();
         }
+
+
+        function wireReplayInteractions() {
+            list.querySelectorAll('[data-replay-toggle]').forEach(button => {
+                if (button.dataset.replayToggleWired === 'true') {
+                    return;
+                }
+                button.dataset.replayToggleWired = 'true';
+                button.addEventListener('click', () => {
+                    const entryId = button.getAttribute('data-replay-toggle');
+                    const panel = list.querySelector(`[data-replay-panel="${entryId}"]`);
+                    if (!panel) {
+                        return;
+                    }
+                    const nextState = panel.hidden;
+                    panel.hidden = !nextState;
+                    panel.classList.toggle('is-open', nextState);
+                    button.setAttribute('aria-expanded', String(nextState));
+                });
+            });
+
+            list.querySelectorAll('[data-replay-now]').forEach(button => {
+                if (button.dataset.replayNowWired === 'true') {
+                    return;
+                }
+                button.dataset.replayNowWired = 'true';
+                button.addEventListener('click', async () => {
+                    const entryId = button.getAttribute('data-replay-now');
+                    const entry = state.entries.get(entryId);
+                    if (!entry?.request) {
+                        return;
+                    }
+                    const originalLabel = button.textContent;
+                    button.disabled = true;
+                    button.textContent = 'Replaying...';
+                    showReplayPending(entryId);
+                    try {
+                        const result = await replayRequest(entry.request);
+                        showReplayResult(entryId, result);
+                    } catch (err) {
+                        showReplayError(entryId, err);
+                    } finally {
+                        button.disabled = false;
+                        button.textContent = originalLabel ?? 'Replay Now';
+                    }
+                });
+            });
+        }
+
+        function getReplayContainer(entryId) {
+            return list.querySelector(`[data-replay-result="${entryId}"]`);
+        }
+
+        function showReplayPending(entryId) {
+            const container = getReplayContainer(entryId);
+            if (container) {
+                container.innerHTML = '<p class="muted">Sending replay...</p>';
+            }
+        }
+
+        function showReplayResult(entryId, result) {
+            const container = getReplayContainer(entryId);
+            if (container) {
+                container.innerHTML = renderReplayResultContent(result);
+            }
+        }
+
+        function showReplayError(entryId, err) {
+            const container = getReplayContainer(entryId);
+            if (container) {
+                const message = err instanceof Error ? err.message : (typeof err === 'string' ? err : 'Unexpected replay error.');
+                container.innerHTML = renderReplayErrorContent(message);
+            }
+        }
+
+        function renderReplayResultContent(result) {
+            const statusText = typeof result.status === 'number' ? String(result.status) : '-';
+            const statusStyle = typeof result.status === 'number' ? `status-${getStatusBucket(result.status)}` : 'status-na';
+            const duration = Number.isFinite(result.durationMs) ? `${result.durationMs.toFixed(2)} ms` : '-';
+            const safeUrl = escapeHtml(result.url ?? '');
+            const headersHtml = renderHeaders(result.headers);
+            const bodyText = escapeHtml(result.body ?? EMPTY_BODY);
+            return `
+                <div class="replay-meta-row">
+                    <span class="status-pill ${statusStyle}">${escapeHtml(statusText)}</span>
+                    <span class="replay-url" title="${safeUrl}">${safeUrl}</span>
+                    <span class="replay-duration">${escapeHtml(duration)}</span>
+                </div>
+                <div class="replay-card">
+                    <header>Headers</header>
+                    ${headersHtml}
+                </div>
+                <div class="replay-card">
+                    <header>Body</header>
+                    <pre class="code-block">${bodyText}</pre>
+                </div>
+            `;
+        }
+
+        function renderReplayErrorContent(message) {
+            return `<p class="error-text">Replay failed: ${escapeHtml(message)}</p>`;
+        }
+
+        async function replayRequest(request) {
+            if (!request) {
+                throw new Error('Request metadata missing.');
+            }
+            const url = buildRequestUrl(request);
+            if (!url) {
+                throw new Error('Request URL is unavailable.');
+            }
+            const method = (request.method || 'GET').toUpperCase();
+            const sanitizedHeaders = sanitizeHeaders(request.headers);
+            const headers = {};
+            Object.entries(sanitizedHeaders).forEach(([key, value]) => {
+                headers[key] = value;
+            });
+            const body = normalizeReplayBody(request.body);
+            const options = { method, headers };
+            if (body != null && method !== 'GET' && method !== 'HEAD') {
+                options.body = body;
+            }
+            const started = performance.now();
+            const response = await fetch(url, options);
+            const durationMs = performance.now() - started;
+            const replayHeaders = {};
+            response.headers.forEach((value, key) => {
+                replayHeaders[key] = value;
+            });
+            const bodyText = await readReplayBody(response);
+            return {
+                status: response.status,
+                ok: response.ok,
+                durationMs,
+                headers: replayHeaders,
+                body: bodyText,
+                url
+            };
+        }
+
+        function buildCurlCommand(request) {
+            if (!request) {
+                return '';
+            }
+            const url = buildRequestUrl(request);
+            if (!url) {
+                return '';
+            }
+            const method = (request.method || 'GET').toUpperCase();
+            const lines = [`curl -X ${method} "${escapeForDoubleQuotes(url)}"`];
+            const headers = sanitizeHeaders(request.headers);
+            Object.entries(headers).forEach(([key, value]) => {
+                lines.push(`-H "${escapeForDoubleQuotes(`${key}: ${value}`)}"`);
+            });
+            const body = normalizeReplayBody(request.body);
+            if (body != null && method !== 'GET' && method !== 'HEAD') {
+                lines.push(`--data '${escapeForSingleQuotes(body)}'`);
+            }
+            return lines.map((line, index) => (index === 0 ? line : `  ${line}`)).join(' \n');
+        }
+
+        function buildPowerShellCommand(request) {
+            if (!request) {
+                return '';
+            }
+            const url = buildRequestUrl(request);
+            if (!url) {
+                return '';
+            }
+            const method = (request.method || 'GET').toUpperCase();
+            const lines = [`Invoke-WebRequest -Uri "${escapeForPowerShellDouble(url)}" -Method ${method}`];
+            const headers = sanitizeHeaders(request.headers);
+            const headerEntries = Object.entries(headers);
+            if (headerEntries.length) {
+                const headerText = headerEntries
+                    .map(([key, value]) => `"${escapeForPowerShellDouble(key)}"="${escapeForPowerShellDouble(value)}"`)
+                    .join('; ');
+                lines.push(`  -Headers @{ ${headerText} }`);
+            }
+            const body = normalizeReplayBody(request.body);
+            if (body != null && method !== 'GET' && method !== 'HEAD') {
+                lines.push(`  -Body '${escapeForPowerShellSingle(body)}'`);
+            }
+            return lines.join(' `\n');
+        }
+
+        function buildRequestUrl(request) {
+            const path = request?.path ? (request.path.startsWith('/') ? request.path : `/${request.path}`) : '/';
+            const query = request?.queryString ?? '';
+            const hostHeader = getHeaderValue(request?.headers, 'Host');
+            const origin = hostHeader ? `${window.location.protocol}//${hostHeader}` : window.location.origin;
+            return `${origin}${path}${query}`;
+        }
+
+        function sanitizeHeaders(headers) {
+            if (!headers) {
+                return {};
+            }
+            const sanitized = {};
+            for (const [key, value] of Object.entries(headers)) {
+                if (value == null) {
+                    continue;
+                }
+                const lower = key.toLowerCase();
+                if (RESTRICTED_HEADER_NAMES.has(lower)) {
+                    continue;
+                }
+                if (RESTRICTED_HEADER_PREFIXES.some(prefix => lower.startsWith(prefix))) {
+                    continue;
+                }
+                sanitized[key] = value;
+            }
+            return sanitized;
+        }
+
+        function normalizeReplayBody(body) {
+            if (body == null) {
+                return null;
+            }
+            if (typeof body !== 'string') {
+                return String(body);
+            }
+            const trimmed = body.trim();
+            if (!trimmed || trimmed === '""') {
+                return null;
+            }
+            return trimmed;
+        }
+
+        async function readReplayBody(response) {
+            const contentType = response.headers.get('content-type') ?? '';
+            if (isBinaryContentType(contentType)) {
+                return `[binary content: ${contentType || 'unknown'}]`;
+            }
+            try {
+                const text = await response.text();
+                return formatBodyText(text);
+            } catch {
+                return '[unable to read body]';
+            }
+        }
+
+        function isBinaryContentType(contentType) {
+            if (!contentType) {
+                return false;
+            }
+            const lower = contentType.toLowerCase();
+            return lower.startsWith('application/octet-stream')
+                || lower.startsWith('image/')
+                || lower.startsWith('audio/')
+                || lower.startsWith('video/');
+        }
+
+
+
+        function escapeForDoubleQuotes(value) {
+            return String(value ?? '')
+                .replace(/\\/g, '\\\\')   // escape backslashes
+                .replace(/"/g, '\\"');    // escape double quotes
+        }
+
+        function escapeForSingleQuotes(value) {
+            return String(value ?? '').split("'").join(`'"'"'`);
+        }
+
+        function escapeForPowerShellDouble(value) {
+            return String(value ?? '').replace(/`/g, '``').replace(/"/g, '`"');
+        }
+
+        function escapeForPowerShellSingle(value) {
+            return String(value ?? '').replace(/'/g, "''");
+        }
+
 
         window.setInterval(fetchEvents, 4000);
         fetchEvents();
@@ -762,5 +1208,3 @@
                 return iso ?? '';
             }
         }
-
-
