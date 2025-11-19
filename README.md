@@ -15,7 +15,7 @@ Instead, it fills the gap between “no visibility at all” and “full observa
 
 # 🖼 Dashboard Preview
 
-`![Dashboard Preview](./docs/images/v1.4.0/dashboard.png)`
+`![Dashboard Preview](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.4.0/dashboard.png)`
 
 ---
 
@@ -32,7 +32,7 @@ Access `/http-inspector` to see:
 - Free-text, method, and status filters  
 - Smooth, responsive UI designed for developers  
 
-`![Expanded Request](./docs/images/v1.4.0/request_details.png)`
+`![Expanded Request](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.4.0/request_details.png)`
 
 ---
 
@@ -45,7 +45,7 @@ Automatically captures all `HttpClient` calls triggered during request processin
 - Response status and duration  
 - End-to-end request chain visibility  
 
-`![Outgoing Requests](./docs/images/v1.4.0/outgoing_request_tracking.png)`
+`![Outgoing Requests](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.4.0/outgoing_request_tracking.png)`
 
 ---
 
@@ -60,7 +60,7 @@ Replay any captured request directly:
   - Raw HTTP format  
 - Replay results rendered directly in the UI  
 
-`![Replay Feature](./docs/images/v1.4.0/replay_request.png)`
+`![Replay Feature](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.4.0/replay_request.png)`
 
 ---
 
