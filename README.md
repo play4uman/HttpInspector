@@ -143,12 +143,6 @@ app.UseHttpInspector();
 app.Run();
 ```
 
-Open the dashboard:
-
-```
-http://localhost:<port>/http-inspector
-```
-
 ---
 
 # ⚙️ Optional Configuration
