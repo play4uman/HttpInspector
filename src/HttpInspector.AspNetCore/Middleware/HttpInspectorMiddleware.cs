@@ -62,34 +62,43 @@ public sealed class HttpInspectorMiddleware
 
 
         var correlationId = Guid.NewGuid().ToString("n", CultureInfo.InvariantCulture);
-        var requestEntry = await CaptureRequestAsync(context, correlationId, options).ConfigureAwait(false);
-        await PersistAsync(requestEntry, context.RequestAborted).ConfigureAwait(false);
-
-        var originalBody = context.Response.Body;
-        await using var buffer = new MemoryStream();
-        context.Response.Body = buffer;
-        var stopwatch = Stopwatch.StartNew();
-        ExceptionDispatchInfo? capturedException = null;
+        HttpInspectorCorrelationContext.Set(context, correlationId);
 
         try
         {
-            await _next(context).ConfigureAwait(false);
+            var requestEntry = await CaptureRequestAsync(context, correlationId, options).ConfigureAwait(false);
+            await PersistAsync(requestEntry, context.RequestAborted).ConfigureAwait(false);
+
+            var originalBody = context.Response.Body;
+            await using var buffer = new MemoryStream();
+            context.Response.Body = buffer;
+            var stopwatch = Stopwatch.StartNew();
+            ExceptionDispatchInfo? capturedException = null;
+
+            try
+            {
+                await _next(context).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                capturedException = ExceptionDispatchInfo.Capture(ex);
+            }
+
+            stopwatch.Stop();
+            buffer.Seek(0, SeekOrigin.Begin);
+            var responseEntry = await CaptureResponseAsync(context, buffer, correlationId, stopwatch.Elapsed, options).ConfigureAwait(false);
+            buffer.Seek(0, SeekOrigin.Begin);
+            await buffer.CopyToAsync(originalBody, context.RequestAborted).ConfigureAwait(false);
+            context.Response.Body = originalBody;
+
+            await PersistAsync(responseEntry, context.RequestAborted).ConfigureAwait(false);
+
+            capturedException?.Throw();
         }
-        catch (Exception ex)
+        finally
         {
-            capturedException = ExceptionDispatchInfo.Capture(ex);
+            HttpInspectorCorrelationContext.Clear(context);
         }
-
-        stopwatch.Stop();
-        buffer.Seek(0, SeekOrigin.Begin);
-        var responseEntry = await CaptureResponseAsync(context, buffer, correlationId, stopwatch.Elapsed, options).ConfigureAwait(false);
-        buffer.Seek(0, SeekOrigin.Begin);
-        await buffer.CopyToAsync(originalBody, context.RequestAborted).ConfigureAwait(false);
-        context.Response.Body = originalBody;
-
-        await PersistAsync(responseEntry, context.RequestAborted).ConfigureAwait(false);
-
-        capturedException?.Throw();
     }
 
     private async Task<HttpInspectorLogEntry> CaptureRequestAsync(HttpContext context, string correlationId, HttpInspectorOptions options)

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using HttpInspector.AspNetCore.Handlers;
 using HttpInspector.AspNetCore.Internal;
 using HttpInspector.AspNetCore.Options;
 using HttpInspector.AspNetCore.Store;
@@ -7,6 +8,7 @@ using HttpInspector.AspNetCore.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Http;
 
 namespace HttpInspector.AspNetCore.Extensions;
 
@@ -14,6 +16,7 @@ public static class HttpInspectorServiceCollectionExtensions
 {
     public static IServiceCollection AddHttpInspector(this IServiceCollection services, Action<HttpInspectorOptions>? configure = null)
     {
+        services.AddHttpContextAccessor();
         services.AddOptions<HttpInspectorOptions>();
         if (configure is not null)
         {
@@ -28,6 +31,12 @@ public static class HttpInspectorServiceCollectionExtensions
             if (options.MaxBodyLength <= 0)
             {
                 options.MaxBodyLength = 10_000;
+            }
+
+            options.Outgoing.RedactedHeaders ??= new[] { "Authorization", "Cookie" };
+            if (options.Outgoing.MaxBodyLength <= 0)
+            {
+                options.Outgoing.MaxBodyLength = 10_000;
             }
         });
 
@@ -70,6 +79,8 @@ public static class HttpInspectorServiceCollectionExtensions
         services.TryAddSingleton<HttpInspectorPathFilter>();
         services.TryAddSingleton<HttpInspectorUiRenderer>();
         services.TryAddSingleton<HttpInspectorAssetProvider>();
+        services.TryAddTransient<HttpInspectorOutgoingHandler>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHttpMessageHandlerBuilderFilter, HttpInspectorOutgoingHandlerBuilderFilter>());
 
         services.TryAddSingleton<FileHttpInspectorStore>();
         services.TryAddSingleton<IHttpInspectorStore>(sp => sp.GetRequiredService<FileHttpInspectorStore>());
