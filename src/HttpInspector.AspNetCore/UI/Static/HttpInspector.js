@@ -464,12 +464,12 @@
                         </div>
                     </details>
                     <details class="io-stack" closed>
-                        <summary class="io-stack-summary">Replay</summary>
-                        ${replaySection}
-                    </details>
-                    <details class="io-stack" closed>
                         <summary class="io-stack-summary">Outgoing requests: ${outgoingRequestCount}</summary>
                         ${outgoingSection}
+                    </details>
+                    <details class="io-stack" closed>
+                        <summary class="io-stack-summary">Replay</summary>
+                        ${replaySection}
                     </details>
                 </article>
             `;
