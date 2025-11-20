@@ -79,10 +79,8 @@ Replay any captured request directly:
 - Truncate large request/response bodies  
 - Include/exclude specific paths  
 - Optional authentication for the dashboard  
-- Configurable retention and file rotation  
-
-*(Insert screenshot demonstrating redacted headers/config)*
-
+- Configurable retention and file rotation
+  
 ---
 
 ## 📦 Extensible storage
