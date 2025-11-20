@@ -13,6 +13,20 @@ Instead, it fills the gap between “no visibility at all” and “full observa
 
 ---
 
+# 💡 Philosophy
+
+HttpInspector focuses on being:
+
+- **Fast to enable**  
+- **Effortless to use**  
+- **Powerful for debugging**  
+- **Zero-infrastructure**  
+- **In-app and self-contained**  
+
+It provides immediate clarity into what the API is doing **right now**, especially in complex request chains — all without the overhead of full observability stacks.
+
+---
+
 # 🖼 Dashboard Preview
 1. Install the NuGet package:
    ```bash
@@ -155,18 +169,3 @@ app.UseHttpInspector(store =>
 ```
 
 ---
-
-# 💡 Philosophy
-
-HttpInspector focuses on being:
-
-- **Fast to enable**  
-- **Effortless to use**  
-- **Powerful for debugging**  
-- **Zero-infrastructure**  
-- **In-app and self-contained**  
-
-It provides immediate clarity into what the API is doing **right now**, especially in complex request chains — all without the overhead of full observability stacks.
-
----
-
