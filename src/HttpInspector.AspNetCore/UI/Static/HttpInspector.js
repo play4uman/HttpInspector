@@ -55,13 +55,12 @@
             }
         };
 
+        const outgoingByParent = new Map();
+        const ORPHAN_KEY = '__httpinspector_outgoing_orphans__';
+
         let pollHandle = null;
         let activePopover = null;
 
-        const pluginHost = createPluginHost(render, () => state, () => list);
-        registerPluginApi(pluginHost);
-
-        bootstrapOutgoingCallPlugin();
 
         searchInput.addEventListener('input', () => {
             state.search = searchInput.value.trim().toLowerCase();
@@ -255,8 +254,7 @@
                 const payload = await response.json();
                 if (Array.isArray(payload) && payload.length) {
                     for (const evt of payload) {
-                        upsert(evt);
-                        pluginHost.notifyEvent(evt);
+                        ingestEvent(evt);
                         if (!state.lastTimestamp || evt.timestamp > state.lastTimestamp) {
                             state.lastTimestamp = evt.timestamp;
                         }
@@ -307,8 +305,24 @@
                 }
             }
         }
+        function ingestEvent(entry) {
+            if (!entry) {
+                return;
+            }
+
+            if (entry.type === 'outgoing') {
+                storeOutgoingEntry(entry);
+                return;
+            }
+
+            upsert(entry);
+        }
+
         function upsert(entry) {
             const id = entry.id;
+            if (entry.type === 'outgoing') {
+                return;
+            }
             const existing = state.entries.get(id) ?? { id, request: null, response: null };
             if (entry.type === "request") {
                 existing.request = entry;
@@ -321,7 +335,6 @@
 
 
         function render() {
-            pluginHost.prepareForRender();
             const search = state.search;
             const method = state.method;
             const bucket = state.statusBucket;
@@ -354,12 +367,12 @@
                 state.renderedCards.clear();
                 state.cardSignatures.clear();
                 list.innerHTML = '';
-                const hasStandalone = pluginHost.renderStandaloneCards();
-                if (!hasStandalone) {
+                pruneDetachedParents(new Set());
+                const hasOutgoingOnly = renderOutgoingStandaloneCards();
+                if (!hasOutgoingOnly) {
                     list.innerHTML = '<p class="muted" data-empty-message>No events captured yet.</p>';
                 }
                 wireCopyButtons();
-                pluginHost.notifyRendered();
                 return;
             }
 
@@ -390,7 +403,6 @@
                 }
 
                 ensureCardPosition(cardElement, index);
-                pluginHost.updateCardSections(cardElement, pair);
             });
 
             for (const [cardId, element] of Array.from(state.renderedCards.entries())) {
@@ -401,9 +413,9 @@
                 }
             }
 
-            pluginHost.renderStandaloneCards();
+            pruneDetachedParents(seen);
+            renderOutgoingStandaloneCards();
             wireCopyButtons();
-            pluginHost.notifyRendered();
         }
 
 
@@ -422,6 +434,7 @@
             const requestRow = renderRow('REQUEST', 'request', request, reqBodyId, 'section-card request-card');
             const responseRow = renderRow('RESPONSE', 'response', response, resBodyId, `section-card response-card ${statusClass}`);
             const replaySection = request ? renderReplaySection(pair.id, request) : '';
+            const outgoingSection = renderOutgoingSection(pair.id);
 
             return `
                 <article class="log-card" id="entry-${pair.id}" data-entry-id="${pair.id}">
@@ -453,6 +466,7 @@
                         <summary class="io-stack-summary">Replay</summary>
                         ${replaySection}
                     </details>
+                    ${outgoingSection}
                 </article>
             `;
         }
@@ -472,7 +486,11 @@
         }
 
         function computeCardSignature(pair) {
-            return JSON.stringify({ request: pair.request ?? null, response: pair.response ?? null });
+            return JSON.stringify({
+                request: pair.request ?? null,
+                response: pair.response ?? null,
+                outgoing: snapshotOutgoingEvents(pair.id)
+            });
         }
 
         function captureCardState(cardElement) {
@@ -1174,227 +1192,240 @@
 
 
 
-        function createPluginHost(renderInvoker, stateAccessor, listAccessor) {
-            const eventHandlers = [];
-            const cardSectionRenderers = [];
-            const standaloneRenderers = [];
-            const renderListeners = [];
-            const sectionContainers = new WeakMap();
-            let standaloneContainer = null;
-            let renderScheduled = false;
-
-            function scheduleRender() {
-                if (renderScheduled) {
-                    return;
-                }
-                renderScheduled = true;
-                Promise.resolve().then(() => {
-                    renderScheduled = false;
-                    renderInvoker();
-                });
+        function storeOutgoingEntry(entry) {
+            const key = entry.parentId ?? ORPHAN_KEY;
+            let bucket = outgoingByParent.get(key);
+            if (!bucket) {
+                bucket = new Map();
+                outgoingByParent.set(key, bucket);
             }
 
-            function register(factory) {
-                if (typeof factory !== 'function') {
-                    return;
-                }
-
-                const api = {
-                    onEventReceived: handler => {
-                        if (typeof handler === 'function') {
-                            eventHandlers.push(handler);
-                        }
-                    },
-                    registerCardSection: renderer => {
-                        if (typeof renderer === 'function') {
-                            cardSectionRenderers.push(renderer);
-                        }
-                    },
-                    registerStandaloneCards: renderer => {
-                        if (typeof renderer === 'function') {
-                            standaloneRenderers.push(renderer);
-                        }
-                    },
-                    onRendered: handler => {
-                        if (typeof handler === 'function') {
-                            renderListeners.push(handler);
-                        }
-                    },
-                    requestRender: () => scheduleRender(),
-                    getStateSnapshot: () => {
-                        const snapshot = stateAccessor() ?? {};
-                        const sourceEntries = snapshot.entries ?? [];
-                        const entries = sourceEntries instanceof Map
-                            ? new Map(sourceEntries)
-                            : new Map(sourceEntries ?? []);
-                        return {
-                            entries,
-                            lastTimestamp: snapshot.lastTimestamp ?? null,
-                            raw: snapshot
-                        };
-                    }
-                };
-
-                try {
-                    factory(api);
-                } catch (err) {
-                    console.error('HttpInspector plugin failed to initialize', err);
-                }
-            }
-
-            function notifyEvent(evt) {
-                for (const handler of eventHandlers) {
-                    try {
-                        handler(evt);
-                    } catch (err) {
-                        console.error('HttpInspector plugin onEventReceived failed', err);
-                    }
-                }
-            }
-
-            function prepareForRender() {
-                if (standaloneContainer?.isConnected) {
-                    standaloneContainer.remove();
-                }
-            }
-
-            function createSectionHost(cardElement) {
-                const container = document.createElement('div');
-                container.className = 'plugin-section-group';
-                container.dataset.pluginSections = 'true';
-                sectionContainers.set(cardElement, container);
-                return container;
-            }
-
-            function updateCardSections(cardElement, pair) {
-                if (!cardSectionRenderers.length || !cardElement) {
-                    return;
-                }
-
-                const fragments = [];
-                for (const renderer of cardSectionRenderers) {
-                    try {
-                        const fragment = renderer(pair);
-                        if (!fragment) {
-                            continue;
-                        }
-                        if (Array.isArray(fragment)) {
-                            fragment.forEach(item => {
-                                if (item) {
-                                    fragments.push(item);
-                                }
-                            });
-                        } else {
-                            fragments.push(fragment);
-                        }
-                    } catch (err) {
-                        console.error('HttpInspector plugin card section failed', err);
-                    }
-                }
-
-                const existing = sectionContainers.get(cardElement);
-                if (!fragments.length) {
-                    if (existing?.isConnected) {
-                        existing.innerHTML = '';
-                        existing.remove();
-                    }
-                    return;
-                }
-
-                const host = existing ?? createSectionHost(cardElement);
-                host.innerHTML = fragments.join('');
-                if (!host.isConnected) {
-                    cardElement.appendChild(host);
-                }
-            }
-
-            function renderStandaloneCards() {
-                if (!standaloneRenderers.length) {
-                    if (standaloneContainer?.isConnected) {
-                        standaloneContainer.innerHTML = '';
-                        standaloneContainer.remove();
-                    }
-                    return false;
-                }
-
-                const fragments = [];
-                for (const renderer of standaloneRenderers) {
-                    try {
-                        const result = renderer();
-                        if (Array.isArray(result)) {
-                            for (const item of result) {
-                                if (item) {
-                                    fragments.push(item);
-                                }
-                            }
-                        } else if (result) {
-                            fragments.push(result);
-                        }
-                    } catch (err) {
-                        console.error('HttpInspector plugin standalone card failed', err);
-                    }
-                }
-
-                if (!fragments.length) {
-                    if (standaloneContainer?.isConnected) {
-                        standaloneContainer.innerHTML = '';
-                        standaloneContainer.remove();
-                    }
-                    return false;
-                }
-
-                const listElement = listAccessor();
-                if (!listElement) {
-                    return false;
-                }
-
-                if (!standaloneContainer) {
-                    standaloneContainer = document.createElement('div');
-                    standaloneContainer.dataset.pluginStandalone = 'true';
-                }
-
-                if (!standaloneContainer.isConnected) {
-                    listElement.appendChild(standaloneContainer);
-                }
-
-                standaloneContainer.innerHTML = fragments.join('');
-                return true;
-            }
-
-            function notifyRendered() {
-                for (const handler of renderListeners) {
-                    try {
-                        handler();
-                    } catch (err) {
-                        console.error('HttpInspector plugin onRendered failed', err);
-                    }
-                }
-            }
-
-            return {
-                register,
-                notifyEvent,
-                prepareForRender,
-                updateCardSections,
-                renderStandaloneCards,
-                notifyRendered,
-                requestRender: scheduleRender
-            };
+            bucket.set(entry.id, entry);
         }
 
-        function registerPluginApi(host) {
-            const globalApi = window.HttpInspector ?? {};
-            globalApi.registerPlugin = factory => {
-                if (typeof factory !== 'function') {
-                    return;
-                }
-                host.register(factory);
-            };
-            window.HttpInspector = globalApi;
+        function sortOutgoingCalls(bucket) {
+            return Array.from(bucket.values()).sort((a, b) => {
+                const left = a?.timestamp ?? '';
+                const right = b?.timestamp ?? '';
+                return left.localeCompare(right);
+            });
         }
 
-        window.setInterval(fetchEvents, 4000);
-        fetchEvents();
+        function snapshotOutgoingEvents(parentId) {
+            const bucket = outgoingByParent.get(parentId);
+            if (!bucket || bucket.size === 0) {
+                return null;
+            }
+
+            return sortOutgoingCalls(bucket).map(call => ({
+                id: call.id,
+                timestamp: call.timestamp ?? null,
+                statusCode: call.statusCode ?? null,
+                durationMs: call.durationMs ?? null,
+                method: call.method ?? null,
+                url: call.url ?? null,
+                faulted: call.faulted ?? false,
+                exception: call.exception ?? null,
+                requestHeaders: call.requestHeaders ?? null,
+                responseHeaders: call.responseHeaders ?? null,
+                requestBody: call.requestBody ?? null,
+                responseBody: call.responseBody ?? null
+            }));
+        }
+
+        function pruneDetachedParents(knownIds) {
+            for (const key of outgoingByParent.keys()) {
+                if (key === ORPHAN_KEY) {
+                    continue;
+                }
+
+                if (!knownIds.has(key)) {
+                    outgoingByParent.delete(key);
+                }
+            }
+        }
+
+        function renderOutgoingStandaloneCards() {
+            const existing = list.querySelector('[data-outgoing-orphans]');
+            if (existing) {
+                existing.remove();
+            }
+
+            const bucket = outgoingByParent.get(ORPHAN_KEY);
+            if (!bucket || bucket.size === 0) {
+                return false;
+            }
+
+            const wrapper = document.createElement('div');
+            wrapper.dataset.outgoingOrphans = 'true';
+            wrapper.innerHTML = sortOutgoingCalls(bucket).map(renderOrphanCard).join('');
+            list.appendChild(wrapper);
+            return true;
+        }
+
+        function renderOutgoingSection(parentId) {
+            const bucket = outgoingByParent.get(parentId);
+            if (!bucket || bucket.size === 0) {
+                return '';
+            }
+
+            const entries = sortOutgoingCalls(bucket);
+            const noun = entries.length === 1 ? 'call' : 'calls';
+            const listMarkup = entries.map(renderOutgoingCall).join('');
+            return `
+                <details class="io-stack" closed>
+                    <summary class="io-stack-summary">${entries.length} outgoing HTTP ${noun}</summary>
+                    <div class="outgoing-call-list">
+                        ${listMarkup}
+                    </div>
+                </details>
+            `;
+        }
+
+        function renderOrphanCard(call) {
+            const url = parseOutgoingUrl(call.url);
+            const status = formatOutgoingStatus(call.statusCode);
+            const summary = renderOutgoingCall(call, { collapsible: false, orphan: true });
+
+            return `
+                <article class="log-card outgoing-orphan-card">
+                    <div class="title-row">
+                        <div class="title-left">
+                            <div class="title-line">
+                                <span class="method-pill">${escapeHtml(call.method ?? 'HTTP')}</span>
+                                <span class="path-text" title="${escapeHtml(url.title)}">${escapeHtml(url.display)}</span>
+                            </div>
+                            <p class="muted">Background call</p>
+                        </div>
+                        <span class="status-pill status-${status.bucket}">${status.text}</span>
+                    </div>
+                    ${summary}
+                </article>
+            `;
+        }
+
+        function renderOutgoingCall(call, options = { collapsible: true, orphan: false }) {
+            const url = parseOutgoingUrl(call.url);
+            const status = formatOutgoingStatus(call.statusCode);
+            const duration = call.durationMs != null ? `${call.durationMs.toFixed(2)} ms` : 'pending';
+            const summary = renderOutgoingSummary(call, url, status, duration, options);
+            const reqBodyId = `${call.id}-child-req`;
+            const resBodyId = `${call.id}-child-res`;
+            const openAttr = options.collapsible === false ? ' open' : '';
+
+            return `
+                <details class="child-call"${openAttr}>
+                    <summary>${summary}</summary>
+                    <div class="section-grid child-grid">
+                        ${renderOutgoingChildRow('Request', call.requestHeaders, call.requestBody, reqBodyId, 'request')}
+                        ${renderOutgoingChildRow('Response', call.responseHeaders, call.responseBody, resBodyId, 'response', status.bucket)}
+                    </div>
+                    ${renderOutgoingChildException(call)}
+                </details>
+            `;
+        }
+
+        function renderOutgoingSummary(call, url, status, duration, options) {
+            const method = call.method ?? 'HTTP';
+            const badge = options?.orphan ? 'Background call' : 'Outgoing child';
+            const timestamp = formatOutgoingTimestamp(call.timestamp);
+            return `
+                <div class="child-summary">
+                    <span class="child-chip">${badge}</span>
+                    <span class="method-pill">${escapeHtml(method)}</span>
+                    <span class="child-url" title="${escapeHtml(url.title)}">${escapeHtml(url.display)}</span>
+                    <span class="status-pill status-${status.bucket}">${status.text}</span>
+                    <span class="muted">${escapeHtml(duration)}</span>
+                    <span class="muted child-start">${escapeHtml(timestamp)}</span>
+                </div>
+            `;
+        }
+
+        function renderOutgoingChildRow(label, headers, body, bodyId, kind, statusBucket) {
+            const headersButton = headers && Object.keys(headers).length
+                ? `<button class="copy-headers-btn" type="button" data-copy-headers='${JSON.stringify(headers)}'>Copy All</button>`
+                : '';
+            const cardClass = `section-card ${kind}-card child-card ${statusBucket ? `status-${statusBucket}` : ''}`;
+            return `
+                <details class="section-wrapper child-wrapper" open>
+                    <summary class="section-title">${label}</summary>
+                    <div class="section-divider"></div>
+                    <div class="section-row">
+                        <div class="${cardClass}">
+                            <header>Headers${headersButton}</header>
+                            ${renderOutgoingChildHeaders(headers)}
+                        </div>
+                        <div class="${cardClass}">
+                            <header>Body<button class="copy-btn" type="button" data-copy-body="${bodyId}">Copy</button></header>
+                            <pre id="${bodyId}" class="body-block" data-body="${encodeBody(body)}"></pre>
+                        </div>
+                    </div>
+                </details>
+            `;
+        }
+
+        function renderOutgoingChildHeaders(headers) {
+            if (!headers || Object.keys(headers).length === 0) {
+                return '<p class="muted">None</p>';
+            }
+
+            return `
+                <div class="headers-grid">
+                    ${Object.entries(headers).map(([key, value]) => `
+                        <span class="header-name">${escapeHtml(key)}</span>
+                        <span>${escapeHtml(value ?? '')}</span>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderOutgoingChildException(call) {
+            if (!call?.exception) {
+                return '';
+            }
+
+            return `
+                <div class="child-exception">
+                    <p class="muted">Exception</p>
+                    <pre>${escapeHtml(call.exception)}</pre>
+                </div>
+            `;
+        }
+
+        function parseOutgoingUrl(raw) {
+            if (!raw) {
+                return { display: '(unknown)', title: '(unknown)' };
+            }
+
+            try {
+                const parsed = new URL(raw);
+                return { display: `${parsed.host}${parsed.pathname}`, title: raw, host: parsed.host };
+            } catch {
+                const trimmed = raw.split('?')[0];
+                return { display: trimmed || raw, title: raw };
+            }
+        }
+
+        function formatOutgoingStatus(code) {
+            if (typeof code !== 'number' || Number.isNaN(code)) {
+                return { text: 'ERR', bucket: '5' };
+            }
+
+            const bucket = Math.floor(code / 100);
+            return { text: String(code), bucket };
+        }
+
+        function formatOutgoingTimestamp(iso) {
+            if (!iso) {
+                return 'unknown';
+            }
+
+            try {
+                return new Date(iso).toLocaleString();
+            } catch {
+                return iso;
+            }
+        }
 
         function computeSinceParam() {
             const from = state.timeRange.from;
@@ -1500,332 +1531,4 @@
             } catch {
                 return iso ?? '';
             }
-        }
-
-
-        function bootstrapOutgoingCallPlugin() {
-            const register = window.HttpInspector?.registerPlugin;
-            if (typeof register !== 'function') {
-                console.warn('HttpInspector: outgoing tracking UI could not initialize.');
-                return;
-            }
-
-            register(api => {
-                const outgoingByParent = new Map();
-                const ORPHAN_KEY = '__httpinspector_outgoing_orphans__';
-                ensureOutgoingStyles();
-
-                api.onEventReceived(evt => {
-                    if (!evt || evt.type !== 'outgoing') {
-                        return;
-                    }
-
-                    const key = evt.parentId ?? ORPHAN_KEY;
-                    let bucket = outgoingByParent.get(key);
-                    if (!bucket) {
-                        bucket = new Map();
-                        outgoingByParent.set(key, bucket);
-                    }
-
-                    bucket.set(evt.id, evt);
-                    api.requestRender();
-                });
-
-                api.registerCardSection(pair => {
-                    const bucket = outgoingByParent.get(pair?.id ?? '');
-                    if (!bucket || bucket.size === 0) {
-                        return '';
-                    }
-
-                    const entries = sortCalls(bucket);
-                    const list = entries.map(renderOutgoingCall).join('');
-                    const callNoun = entries.length === 1 ? 'call' : 'calls';
-                    return `
-                        <details class="io-stack" closed>
-                            <summary class="io-stack-summary">${entries.length} outgoing HTTP ${callNoun}</summary>
-                            <div class="outgoing-call-list">
-                                ${list}
-                            </div>
-                        </details>
-                    `;
-                });
-
-                api.registerStandaloneCards(() => {
-                    const bucket = outgoingByParent.get(ORPHAN_KEY);
-                    if (!bucket || bucket.size === 0) {
-                        return [];
-                    }
-
-                    const entries = sortCalls(bucket);
-                    return entries.map(renderOrphanCard);
-                });
-
-                api.onRendered(() => {
-                    pruneDetachedParents(api);
-                });
-
-                function sortCalls(bucket) {
-                    return Array.from(bucket.values()).sort((a, b) => {
-                        const left = a?.timestamp ?? '';
-                        const right = b?.timestamp ?? '';
-                        return left.localeCompare(right);
-                    });
-                }
-
-                function pruneDetachedParents(apiRef) {
-                    const snapshot = apiRef.getStateSnapshot();
-                    const entries = snapshot?.entries instanceof Map
-                        ? snapshot.entries
-                        : new Map(snapshot?.entries ?? []);
-                    const knownIds = new Set(entries.keys());
-                    for (const key of outgoingByParent.keys()) {
-                        if (key === ORPHAN_KEY) {
-                            continue;
-                        }
-
-                        if (!knownIds.has(key)) {
-                            outgoingByParent.delete(key);
-                        }
-                    }
-                }
-
-                function renderOrphanCard(call) {
-                    const url = parseUrl(call.url);
-                    const status = formatStatus(call.statusCode);
-                    const summary = renderOutgoingCall(call, { collapsible: false, orphan: true });
-
-                    return `
-                        <article class="log-card outgoing-orphan-card">
-                            <div class="title-row">
-                                <div class="title-left">
-                                    <div class="title-line">
-                                        <span class="method-pill">${escapeHtml(call.method ?? 'HTTP')}</span>
-                                        <span class="path-text" title="${escapeHtml(url.title)}">${escapeHtml(url.display)}</span>
-                                    </div>
-                                    <p class="muted">Background call</p>
-                                </div>
-                                <span class="status-pill status-${status.bucket}">${status.text}</span>
-                            </div>
-                            ${summary}
-                        </article>
-                    `;
-                }
-
-                function renderOutgoingCall(call, options = { collapsible: true, orphan: false }) {
-                    const url = parseUrl(call.url);
-                    const status = formatStatus(call.statusCode);
-                    const duration = call.durationMs != null ? `${call.durationMs.toFixed(2)} ms` : 'pending';
-                    const summary = renderChildSummary(call, url, status, duration, options);
-                    const reqBodyId = `${call.id}-child-req`;
-                    const resBodyId = `${call.id}-child-res`;
-                    const openAttr = options.collapsible === false ? ' open' : '';
-
-                    return `
-                        <details class="child-call"${openAttr}>
-                            <summary>${summary}</summary>
-                            <div class="section-grid child-grid">
-                                ${renderChildRow('Request', call.requestHeaders, call.requestBody, reqBodyId, 'request')}
-                                ${renderChildRow('Response', call.responseHeaders, call.responseBody, resBodyId, 'response', status.bucket)}
-                            </div>
-                        </details>
-                    `;
-                }
-
-                function renderChildSummary(call, url, status, duration, options) {
-                    const method = call.method ?? 'HTTP';
-                    const badge = options?.orphan ? 'Background call' : 'Outgoing child';
-                    const timestamp = formatTimestamp(call.timestamp);
-                    return `
-                        <div class="child-summary">
-                            <span class="child-chip">${badge}</span>
-                            <span class="method-pill">${escapeHtml(method)}</span>
-                            <span class="child-url" title="${escapeHtml(url.title)}">${escapeHtml(url.display)}</span>
-                            <span class="status-pill status-${status.bucket}">${status.text}</span>
-                            <span class="muted">${escapeHtml(duration)}</span>
-                            <span class="muted child-start">${escapeHtml(timestamp)}</span>
-                        </div>
-                    `;
-                }
-
-                function renderChildRow(label, headers, body, bodyId, kind, statusBucket) {
-                    const headersButton = headers && Object.keys(headers).length
-                        ? `<button class="copy-headers-btn" type="button" data-copy-headers='${JSON.stringify(headers)}'>Copy All</button>`
-                        : '';
-                    const cardClass = `section-card ${kind}-card child-card ${statusBucket ? `status-${statusBucket}` : ''}`;
-                    return `
-                        <details class="section-wrapper child-wrapper" open>
-                            <summary class="section-title">${label}</summary>
-                            <div class="section-divider"></div>
-                            <div class="section-row">
-                                <div class="${cardClass}">
-                                    <header>Headers${headersButton}</header>
-                                    ${renderChildHeaders(headers)}
-                                </div>
-                                <div class="${cardClass}">
-                                    <header>Body<button class="copy-btn" type="button" data-copy-body="${bodyId}">Copy</button></header>
-                                    <pre id="${bodyId}" class="body-block" data-body="${encodeBody(body)}"></pre>
-                                </div>
-                            </div>
-                        </details>
-                    `;
-                }
-
-                function renderChildHeaders(headers) {
-                    if (!headers || Object.keys(headers).length === 0) {
-                        return '<p class="muted">None</p>';
-                    }
-
-                    return `
-                        <div class="headers-grid">
-                            ${Object.entries(headers).map(([key, value]) => `
-                                <span class="header-name">${escapeHtml(key)}</span>
-                                <span>${escapeHtml(value ?? '')}</span>
-                            `).join('')}
-                        </div>
-                    `;
-                }
-
-                function encodeBody(body) {
-                    if (!body) {
-                        return '';
-                    }
-                    return encodeURIComponent(body);
-                }
-
-                function parseUrl(raw) {
-                    if (!raw) {
-                        return { display: '(unknown)', title: '(unknown)' };
-                    }
-
-                    try {
-                        const parsed = new URL(raw);
-                        return { display: `${parsed.host}${parsed.pathname}`, title: raw, host: parsed.host };
-                    } catch {
-                        const trimmed = raw.split('?')[0];
-                        return { display: trimmed || raw, title: raw };
-                    }
-                }
-
-                function formatStatus(code) {
-                    if (typeof code !== 'number' || Number.isNaN(code)) {
-                        return { text: 'ERR', bucket: '5' };
-                    }
-
-                    const bucket = Math.floor(code / 100);
-                    return { text: String(code), bucket };
-                }
-
-                function formatTimestamp(iso) {
-                    if (!iso) {
-                        return 'unknown';
-                    }
-
-                    try {
-                        return new Date(iso).toLocaleString();
-                    } catch {
-                        return iso;
-                    }
-                }
-            });
-        }
-
-        function ensureOutgoingStyles() {
-            if (document.getElementById('httpinspector-pro-styles')) {
-                return;
-            }
-
-            const styles = `
-                .outgoing-card {
-                    grid-column: 1 / -1;
-                    margin-top: 1rem;
-                }
-                .outgoing-card .child-call + .child-call {
-                    margin-top: 0.6rem;
-                }
-                .outgoing-call-list {
-                        margin-top: 1rem;
-                }
-                .child-call {
-                    border: 1px solid rgba(148, 163, 184, 0.25);
-                    border-radius: 10px;
-                    background: rgba(15, 23, 42, 0.25);
-                    overflow: hidden;
-                }
-                .child-call summary {
-                    cursor: pointer;
-                    list-style: none;
-                    padding: 0.85rem 1rem;
-                }
-                .child-call summary::-webkit-details-marker {
-                    display: none;
-                }
-                .child-summary {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 0.5rem;
-                    align-items: center;
-                }
-                .child-chip {
-                    background: rgba(59, 130, 246, 0.15);
-                    color: #93c5fd;
-                    border-radius: 999px;
-                    padding: 0.15rem 0.6rem;
-                    font-size: 0.75rem;
-                    letter-spacing: 0.02em;
-                    text-transform: uppercase;
-                }
-                .child-url {
-                    font-weight: 600;
-                }
-                .child-grid {
-                    border-top: 1px solid rgba(148, 163, 184, 0.2);
-                    padding: 1rem;
-                    background: rgba(15, 23, 42, 0.3);
-                    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
-                }
-                .child-card header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    gap: 0.4rem;
-                }
-                .child-wrapper {
-                    border: none;
-                    background: transparent;
-                    padding: 0;
-                }
-                .child-wrapper .section-row {
-                    gap: 0.75rem;
-                }
-                .child-meta {
-                    display: flex;
-                    gap: 1.5rem;
-                    flex-wrap: wrap;
-                    padding: 0.75rem 1rem;
-                }
-                .child-meta p {
-                    margin: 0;
-                }
-                .child-exception {
-                    padding: 0.75rem 1rem 1rem;
-                }
-                .child-exception pre {
-                    margin: 0.5rem 0 0;
-                    background: rgba(248, 113, 113, 0.08);
-                    border: 1px solid rgba(248, 113, 113, 0.4);
-                    border-radius: 8px;
-                    padding: 0.75rem;
-                    font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
-                    font-size: 0.85rem;
-                    overflow: auto;
-                }
-                .outgoing-orphan-card {
-                    border: 1px dashed rgba(148, 163, 184, 0.4);
-                }
-            `;
-
-            const style = document.createElement('style');
-            style.id = 'httpinspector-pro-styles';
-            style.innerHTML = styles;
-            document.head.appendChild(style);
         }
