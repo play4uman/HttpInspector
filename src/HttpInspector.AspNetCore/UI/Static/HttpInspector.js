@@ -435,6 +435,7 @@
             const responseRow = renderRow('RESPONSE', 'response', response, resBodyId, `section-card response-card ${statusClass}`);
             const replaySection = request ? renderReplaySection(pair.id, request) : '';
             const outgoingSection = renderOutgoingSection(pair.id);
+            const outgoingRequestCount = [...outgoingSection.matchAll(/<details\s+class="child-call"/g)].length;
 
             return `
                 <article class="log-card" id="entry-${pair.id}" data-entry-id="${pair.id}">
@@ -466,7 +467,10 @@
                         <summary class="io-stack-summary">Replay</summary>
                         ${replaySection}
                     </details>
-                    ${outgoingSection}
+                    <details class="io-stack" closed>
+                        <summary class="io-stack-summary">Outgoing requests: ${outgoingRequestCount}</summary>
+                        ${outgoingSection}
+                    </details>
                 </article>
             `;
         }
@@ -1265,21 +1269,22 @@
 
         function renderOutgoingSection(parentId) {
             const bucket = outgoingByParent.get(parentId);
-            if (!bucket || bucket.size === 0) {
-                return '';
+            const hasNoOutgoingChildren = !bucket || bucket.size === 0;
+            let outgoingRequestsMarkup = '';
+            if (hasNoOutgoingChildren) {
+                outgoingRequestsMarkup = '<p class="muted" data-empty-message>This request has no child outgoing requests</p>';
             }
-
-            const entries = sortOutgoingCalls(bucket);
-            const noun = entries.length === 1 ? 'call' : 'calls';
-            const listMarkup = entries.map(renderOutgoingCall).join('');
-            return `
-                <details class="io-stack" closed>
-                    <summary class="io-stack-summary">${entries.length} outgoing HTTP ${noun}</summary>
+            else {
+                const entries = sortOutgoingCalls(bucket);
+                const listMarkup = entries.map(renderOutgoingCall).join('');
+                outgoingRequestsMarkup = `
                     <div class="outgoing-call-list">
                         ${listMarkup}
                     </div>
-                </details>
             `;
+            }
+
+            return outgoingRequestsMarkup;
         }
 
         function renderOrphanCard(call) {
@@ -1327,7 +1332,7 @@
 
         function renderOutgoingSummary(call, url, status, duration, options) {
             const method = call.method ?? 'HTTP';
-            const badge = options?.orphan ? 'Background call' : 'Outgoing child';
+            const badge = options?.orphan ? 'Background call' : 'Child';
             const timestamp = formatOutgoingTimestamp(call.timestamp);
             return `
                 <div class="child-summary">
