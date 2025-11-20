@@ -435,7 +435,7 @@
             const responseRow = renderRow('RESPONSE', 'response', response, resBodyId, `section-card response-card ${statusClass}`);
             const replaySection = request ? renderReplaySection(pair.id, request) : '';
             const outgoingSection = renderOutgoingSection(pair.id);
-            const outgoingRequestCount = [...outgoingSection.matchAll(/<details\s+class="child-call"/g)].length;
+            const outgoingRequestCount = (outgoingSection.match(/<div[^>]*class="section-grid child-grid"/g) || []).length;;
 
             return `
                 <article class="log-card" id="entry-${pair.id}" data-entry-id="${pair.id}">
@@ -444,8 +444,8 @@
                             <div class="title-line">
                                 ${renderMethodPill(request?.method)}
                                 <span class="path-text" title="${escapeHtml(fullPath)}">${escapeHtml(fullPath)}</span>
+                                <button class="copy-url-btn" type="button" data-copy-url="${encodeURIComponent(fullPath)}">Copy URL</button>
                             </div>
-                            <button class="copy-url-btn" type="button" data-copy-url="${encodeURIComponent(fullPath)}">Copy URL</button>
                         </div>
                         <span class="status-pill ${statusClass}">${status}</span>
                     </div>
@@ -598,7 +598,6 @@
                     <div class="timeline">
                         <div class="timeline-bar" style="width:${width}%"></div>
                     </div>
-                    <div class="timeline-label">Duration ${durationMs.toFixed(2)} ms</div>
                 </div>
             `;
         }
@@ -1319,11 +1318,12 @@
             const openAttr = options.collapsible === false ? ' open' : '';
 
             return `
-                <details class="child-call"${openAttr}>
-                    <summary>${summary}</summary>
+                ${summary}
+                <details class="io-stack" closed>
+                    <summary class="io-stack-summary">Details</summary>
                     <div class="section-grid child-grid">
-                        ${renderOutgoingChildRow('Request', call.requestHeaders, call.requestBody, reqBodyId, 'request')}
-                        ${renderOutgoingChildRow('Response', call.responseHeaders, call.responseBody, resBodyId, 'response', status.bucket)}
+                            ${renderOutgoingChildRow('Request', call.requestHeaders, call.requestBody, reqBodyId, 'request')}
+                            ${renderOutgoingChildRow('Response', call.responseHeaders, call.responseBody, resBodyId, 'response', status.bucket)}
                     </div>
                     ${renderOutgoingChildException(call)}
                 </details>
@@ -1332,16 +1332,25 @@
 
         function renderOutgoingSummary(call, url, status, duration, options) {
             const method = call.method ?? 'HTTP';
-            const badge = options?.orphan ? 'Background call' : 'Child';
+            const chipLabel = options?.orphan ? 'BACKGROUND' : 'CHILD';
             const timestamp = formatOutgoingTimestamp(call.timestamp);
+            const shortId = trimId(call.id ?? '');
+            const host = url.host ?? url.display ?? 'unknown';
             return `
-                <div class="child-summary">
-                    <span class="child-chip">${badge}</span>
-                    <span class="method-pill">${escapeHtml(method)}</span>
-                    <span class="child-url" title="${escapeHtml(url.title)}">${escapeHtml(url.display)}</span>
+
+                <div class="child-summary-header">
+                    <div class="summary-title">
+                        <span class="child-chip">${chipLabel}</span>
+                        ${renderMethodPill(method)}
+                        <span class="path-text" title="${escapeHtml(url.title)}">${escapeHtml(url.display)}</span>
+                    </div>
                     <span class="status-pill status-${status.bucket}">${status.text}</span>
-                    <span class="muted">${escapeHtml(duration)}</span>
-                    <span class="muted child-start">${escapeHtml(timestamp)}</span>
+                </div>
+                <div class="mini-summary child-mini-summary">
+                    ${renderSummaryItem('🗓', timestamp)}
+                    ${renderSummaryItem('⏲', duration)}
+                    ${renderSummaryItem('📡', host)}
+                    ${renderSummaryItem('#', shortId.display, shortId.full)}
                 </div>
             `;
         }
