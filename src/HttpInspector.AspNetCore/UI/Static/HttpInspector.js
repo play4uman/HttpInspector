@@ -1633,8 +1633,6 @@
                                 ${renderChildRow('Request', call.requestHeaders, call.requestBody, reqBodyId, 'request')}
                                 ${renderChildRow('Response', call.responseHeaders, call.responseBody, resBodyId, 'response', status.bucket)}
                             </div>
-                            ${renderChildMeta(call, url, duration)}
-                            ${renderChildException(call)}
                         </details>
                     `;
                 }
@@ -1689,40 +1687,6 @@
                                 <span class="header-name">${escapeHtml(key)}</span>
                                 <span>${escapeHtml(value ?? '')}</span>
                             `).join('')}
-                        </div>
-                    `;
-                }
-
-                function renderChildMeta(call, url, duration) {
-                    const timestamp = formatTimestamp(call.timestamp);
-                    const host = url.host ?? url.display;
-                    return `
-                        <div class="child-meta">
-                            <div>
-                                <p class="muted">Started</p>
-                                <p>${escapeHtml(timestamp)}</p>
-                            </div>
-                            <div>
-                                <p class="muted">Host</p>
-                                <p>${escapeHtml(host)}</p>
-                            </div>
-                            <div>
-                                <p class="muted">Duration</p>
-                                <p>${escapeHtml(duration)}</p>
-                            </div>
-                        </div>
-                    `;
-                }
-
-                function renderChildException(call) {
-                    if (!call?.exception) {
-                        return '';
-                    }
-
-                    return `
-                        <div class="child-exception">
-                            <p class="muted">Exception</p>
-                            <pre>${escapeHtml(call.exception)}</pre>
                         </div>
                     `;
                 }
