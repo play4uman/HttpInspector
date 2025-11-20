@@ -14,6 +14,12 @@ Instead, it fills the gap between “no visibility at all” and “full observa
 ---
 
 # 🖼 Dashboard Preview
+1. Install the NuGet package:
+   ```bash
+   dotnet add package HttpInspector.AspNetCore --version 1.4.0
+   ```
+  2. Use the [Quick Start Guide](#-quick-start) to set up the package in your ASP.NET project
+  3. Open http://localhost:{PORT}**/http-inspector** in your browser
 
 ![Dashboard Preview](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.4.0/dashboard.png?raw=true)
 
