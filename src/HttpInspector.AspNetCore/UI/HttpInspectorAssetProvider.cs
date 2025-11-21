@@ -1,4 +1,7 @@
+﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Reflection;
 using Microsoft.AspNetCore.Http;
 
@@ -6,14 +9,16 @@ namespace HttpInspector.AspNetCore.UI;
 
 internal sealed class HttpInspectorAssetProvider
 {
-    private static readonly IReadOnlyDictionary<string, (string ResourceName, string ContentType)> Assets =
-        new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["httpinspector.css"] = ("HttpInspector.AspNetCore.UI.Static.HttpInspector.css", "text/css; charset=utf-8"),
-            ["httpinspector.js"] = ("HttpInspector.AspNetCore.UI.Static.HttpInspector.js", "application/javascript; charset=utf-8")
-        };
-
-    private readonly Assembly _assembly = typeof(HttpInspectorAssetProvider).GetTypeInfo().Assembly;
+    private const string ResourcePrefix = "HttpInspector.AspNetCore.UI.Static.";
+    private static readonly Assembly AssetAssembly = typeof(HttpInspectorAssetProvider).GetTypeInfo().Assembly;
+    private static readonly IReadOnlyDictionary<string, string> ContentTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        [".css"] = "text/css; charset=utf-8",
+        [".js"] = "application/javascript; charset=utf-8",
+        [".html"] = "text/html; charset=utf-8",
+        [".json"] = "application/json; charset=utf-8",
+        [".map"] = "application/octet-stream"
+    };
 
     public IResult Render(string? asset)
     {
@@ -22,18 +27,57 @@ internal sealed class HttpInspectorAssetProvider
             return Results.NotFound();
         }
 
-        var normalized = asset.Trim('/');
-        if (!Assets.TryGetValue(normalized, out var entry))
+        var normalized = NormalizeAssetPath(asset);
+        if (normalized is null)
         {
             return Results.NotFound();
         }
 
-        var stream = _assembly.GetManifestResourceStream(entry.ResourceName);
+        var resourceName = BuildResourceName(normalized);
+        var stream = AssetAssembly.GetManifestResourceStream(resourceName);
         if (stream is null)
         {
             return Results.NotFound();
         }
 
-        return Results.Stream(stream, entry.ContentType);
+        var extension = Path.GetExtension(normalized);
+        var contentType = ContentTypes.TryGetValue(extension, out var value)
+            ? value
+            : "application/octet-stream";
+
+        return Results.Stream(stream, contentType);
     }
+
+    private static string? NormalizeAssetPath(string raw)
+    {
+        var trimmed = raw.Replace('\\', '/').Trim('/');
+        if (trimmed.Contains("..", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return trimmed;
+    }
+
+    private static string BuildResourceName(string normalized)
+    {
+        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            return ResourcePrefix.TrimEnd('.');
+        }
+
+        if (segments.Length == 1)
+        {
+            return ResourcePrefix + segments[0];
+        }
+
+        var directorySegments = segments[..^1].Select(NormalizeDirectorySegment);
+        var directoryPath = string.Join('.', directorySegments);
+        var fileSegment = segments[^1];
+        return $"{ResourcePrefix}{directoryPath}.{fileSegment}";
+    }
+
+    private static string NormalizeDirectorySegment(string segment)
+        => segment.Replace('-', '_');
 }
