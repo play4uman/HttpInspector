@@ -1,4 +1,5 @@
 ﻿import { encodeBody, escapeHtml } from '../../utils/format.js';
+import { renderDetailsPanel } from '../common/details.js';
 
 export function renderTimeline(durationMs) {
     if (!durationMs || Number.isNaN(durationMs)) {
@@ -38,29 +39,19 @@ export function renderBodySection(title, bodyId, body, cardClass) {
 export function renderRow(label, type, entry, bodyId, cardClass) {
     const headersCard = renderSection('Headers', renderHeaders(entry?.headers), `${cardClass}`, type, entry?.headers);
     const bodyCard = renderBodySection('Body', bodyId, entry?.body, cardClass);
-    return `
-        <details class="section-wrapper ${type}" open>
-            <summary class="section-title">${label}</summary>
-            <div class="section-divider"></div>
-            <div class="section-row">
-                ${headersCard}
-                ${bodyCard}
-            </div>
-        </details>
+    const bodyHtml = `
+        <div class="section-divider"></div>
+        <div class="section-row">
+            ${headersCard}
+            ${bodyCard}
+        </div>
     `;
-}
 
-export function renderMethodPill(method) {
-    const normalized = (method || 'GET').toUpperCase();
-    const classMap = {
-        GET: 'method-default',
-        POST: 'method-post',
-        PUT: 'method-put',
-        DELETE: 'method-delete',
-        PATCH: 'method-patch'
-    };
-    const methodClass = classMap[normalized] || 'method-default';
-    return `<span class="method-pill ${methodClass}">${escapeHtml(normalized)}</span>`;
+    return renderDetailsPanel(label, bodyHtml, {
+        detailsClass: `section-wrapper ${type}`,
+        summaryClass: 'section-title',
+        open: true
+    });
 }
 
 export function renderSummaryItem(icon, value, fullValue) {

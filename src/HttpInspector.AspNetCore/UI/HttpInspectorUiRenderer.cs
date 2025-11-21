@@ -29,7 +29,7 @@ internal sealed class HttpInspectorUiRenderer
     private static string LoadTemplate()
     {
         var assembly = typeof(HttpInspectorUiRenderer).GetTypeInfo().Assembly;
-        const string resourceName = "HttpInspector.AspNetCore.UI.Static.HttpInspector.html";
+        const string resourceName = "HttpInspector.AspNetCore.UI.Static.httpinspector.html";
         using var stream = assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException($"Embedded UI resource '{resourceName}' could not be located.");
         using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: false);

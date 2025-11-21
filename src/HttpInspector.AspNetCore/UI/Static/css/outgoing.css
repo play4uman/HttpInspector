@@ -111,6 +111,7 @@
     align-items: flex-start;
     gap: 1rem;
     border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    padding-bottom: 0.75rem;
 }
 
 .child-summary-title {

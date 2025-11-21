@@ -1,5 +1,7 @@
 ﻿import { escapeHtml, encodeBody, formatOutgoingTimestamp, trimId } from '../../utils/format.js';
-import { renderHeaders, renderMethodPill, renderSummaryItem } from '../log-visualization/templates.js';
+import { renderSummaryItem } from '../log-visualization/templates.js';
+import { renderMethodPill, renderStatusPill } from '../common/pills.js';
+import { renderDetailsPanel } from '../common/details.js';
 
 export function renderOutgoingSection(store, parentId) {
     const calls = store.getCallsForParent(parentId);
@@ -50,7 +52,7 @@ function renderOrphanCard(call) {
                     </div>
                     <p class="muted">Background call</p>
                 </div>
-                <span class="status-pill status-${status.bucket}">${status.text}</span>
+                ${renderStatusPill(status.text, status.bucket)}
             </div>
             ${summary}
         </article>
@@ -64,17 +66,15 @@ function renderOutgoingCall(call, options = { collapsible: true, orphan: false }
     const summary = renderOutgoingSummary(call, url, status, duration, options);
     const reqBodyId = `${call.id}-child-req`;
     const resBodyId = `${call.id}-child-res`;
-    return `
-        ${summary}
-        <details class="io-stack" closed>
-            <summary class="io-stack-summary">Details</summary>
-            <div class="section-grid child-grid">
-                ${renderOutgoingChildRow('Request', call.requestHeaders, call.requestBody, reqBodyId, 'request')}
-                ${renderOutgoingChildRow('Response', call.responseHeaders, call.responseBody, resBodyId, 'response', status.bucket)}
-            </div>
-            ${renderOutgoingChildException(call)}
-        </details>
+    const detailBody = `
+        <div class="section-grid child-grid">
+            ${renderOutgoingChildRow('Request', call.requestHeaders, call.requestBody, reqBodyId, 'request')}
+            ${renderOutgoingChildRow('Response', call.responseHeaders, call.responseBody, resBodyId, 'response', status.bucket)}
+        </div>
+        ${renderOutgoingChildException(call)}
     `;
+    const detailsToggle = renderDetailsPanel('Details', detailBody, { includeClosedAttribute: true });
+    return `${summary}${detailsToggle}`;
 }
 
 function renderOutgoingSummary(call, url, status, duration, options) {
@@ -90,7 +90,7 @@ function renderOutgoingSummary(call, url, status, duration, options) {
                 ${renderMethodPill(method)}
                 <span class="path-text" title="${escapeHtml(url.title)}">${escapeHtml(url.display)}</span>
             </div>
-            <span class="status-pill status-${status.bucket}">${status.text}</span>
+            ${renderStatusPill(status.text, status.bucket)}
         </div>
         <div class="mini-summary child-mini-summary">
             ${renderSummaryItem('🗓', timestamp)}
@@ -105,23 +105,25 @@ function renderOutgoingChildRow(label, headers, body, bodyId, kind, statusBucket
     const headersButton = headers && Object.keys(headers).length
         ? `<button class="copy-headers-btn" type="button" data-copy-headers='${JSON.stringify(headers)}'>Copy All</button>`
         : '';
-    const cardClass = `section-card ${kind}-card child-card ${statusBucket ? `status-${statusBucket}` : ''}`;
-    return `
-        <details class="section-wrapper child-wrapper" open>
-            <summary class="section-title">${label}</summary>
-            <div class="section-divider"></div>
-            <div class="section-row">
-                <div class="${cardClass}">
-                    <header>Headers${headersButton}</header>
-                    ${renderOutgoingChildHeaders(headers)}
-                </div>
-                <div class="${cardClass}">
-                    <header>Body<button class="copy-btn" type="button" data-copy-body="${bodyId}">Copy</button></header>
-                    <pre id="${bodyId}" class="body-block" data-body="${encodeBody(body)}"></pre>
-                </div>
+    const cardClass = `section-card ${kind}-card child-card ${statusBucket ? 'status-' + statusBucket : ''}`;
+    const bodyHtml = `
+        <div class="section-divider"></div>
+        <div class="section-row">
+            <div class="${cardClass}">
+                <header>Headers${headersButton}</header>
+                ${renderOutgoingChildHeaders(headers)}
             </div>
-        </details>
+            <div class="${cardClass}">
+                <header>Body<button class="copy-btn" type="button" data-copy-body="${bodyId}">Copy</button></header>
+                <pre id="${bodyId}" class="body-block" data-body="${encodeBody(body)}"></pre>
+            </div>
+        </div>
     `;
+    return renderDetailsPanel(label, bodyHtml, {
+        detailsClass: 'section-wrapper child-wrapper',
+        summaryClass: 'section-title',
+        open: true
+    });
 }
 
 function renderOutgoingChildHeaders(headers) {
@@ -142,6 +144,7 @@ function renderOutgoingChildException(call) {
     if (!call?.exception) {
         return '';
     }
+
     return `
         <div class="child-exception">
             <p class="muted">Exception</p>
@@ -165,8 +168,9 @@ function parseOutgoingUrl(raw) {
 
 function formatOutgoingStatus(code) {
     if (typeof code !== 'number' || Number.isNaN(code)) {
-        return { text: 'ERR', bucket: '5' };
+        return { text: 'ERR', bucket: 'na' };
     }
+
     const bucket = Math.floor(code / 100);
     return { text: String(code), bucket: `${bucket}xx` };
 }
