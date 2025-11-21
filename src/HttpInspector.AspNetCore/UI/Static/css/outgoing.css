@@ -1,0 +1,132 @@
+.outgoing-card {
+    grid-column: 1 / -1;
+    margin-top: 1rem;
+}
+
+.outgoing-card .child-call + .child-call {
+    margin-top: 0.6rem;
+}
+
+.outgoing-call-list {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.child-call {
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.25);
+    overflow: hidden;
+}
+
+.child-call summary {
+    cursor: pointer;
+    padding: 0.85rem 1rem;
+}
+
+.child-call .section-grid > details.section-wrapper > summary.section-title {
+    padding: 0;
+}
+
+.child-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.child-chip {
+    background: rgba(59, 130, 246, 0.15);
+    color: #93c5fd;
+    border-radius: 999px;
+    padding: 0.15rem 0.6rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.child-url {
+    font-weight: 600;
+}
+
+.child-grid {
+    border-top: 1px solid rgba(148, 163, 184, 0.2);
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.3);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.child-card header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.child-wrapper {
+    border: none;
+    background: transparent;
+    padding: 0;
+}
+
+.child-wrapper .section-row {
+    gap: 0.75rem;
+}
+
+.child-meta {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    padding: 0.75rem 1rem;
+}
+
+.child-meta p {
+    margin: 0;
+}
+
+.child-exception {
+    padding: 0.75rem 1rem 1rem;
+}
+
+.child-exception pre {
+    margin: 0.5rem 0 0;
+    background: rgba(248, 113, 113, 0.08);
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-radius: 8px;
+    padding: 0.75rem;
+    font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+    font-size: 0.85rem;
+    overflow: auto;
+}
+
+.outgoing-orphan-card {
+    border: 1px dashed rgba(148, 163, 184, 0.4);
+}
+
+.child-summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    padding-bottom: 0.75rem;
+}
+
+.child-summary-title {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.child-mini-summary {
+    margin: 0.6rem 0 0.4rem;
+}
+
+.outgoing-call-list > .io-stack {
+    margin-top: 0rem;
+}
