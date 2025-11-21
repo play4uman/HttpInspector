@@ -16,7 +16,7 @@ Instead, it fills the gap between “no visibility at all” and “full observa
 # 💡 Philosophy
 
 HttpInspector focuses on being:
-
+ 
 - **Fast to enable**  
 - **Effortless to use**  
 - **Powerful for debugging**  
