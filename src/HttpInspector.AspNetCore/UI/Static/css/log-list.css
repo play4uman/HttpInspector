@@ -158,7 +158,7 @@
         }
 
 .io-stack-summary {
-            font-size: 0.78rem;
+            font-size: 0.9rem;
             text-transform: uppercase;
             color: rgba(148, 163, 184, 0.8);
             cursor: pointer;
@@ -188,7 +188,7 @@ details.section-wrapper {
         }
 
 .section-title {
-            font-size: 0.72rem;
+            font-size: 0.85rem;
             text-transform: uppercase;
             color: rgba(148, 163, 184, 0.8);
             padding-top: 0.2rem;

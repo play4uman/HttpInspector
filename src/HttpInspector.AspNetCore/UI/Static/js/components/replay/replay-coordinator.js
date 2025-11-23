@@ -32,10 +32,18 @@ export class ReplayCoordinator {
             <div class="replay-section" data-replay-entry="${entryId}">
                 <p class="replay-hint">Review the captured request, adjust headers or body, and replay it or copy a command.</p>
                 <div class="replay-actions">
-                    <button type="button" class="replay-action" data-replay-toggle="${entryId}">Replay Now</button>
-                    <button type="button" class="replay-action primary" data-replay-send="${entryId}" disabled>Send Edited Request</button>
+                    <button type="button" class="replay-action secondary" data-replay-toggle="${entryId}" >
+                        Hide Editor
+                    </button>
+                
+                    <button type="button" class="replay-action primary" data-replay-send="${entryId}">
+                        <span class="icon-send">➤</span>
+                        <span class="send-label">Send Request</span>
+                        <span class="send-spinner" aria-hidden="true"></span>
+                    </button>
                 </div>
-                <div class="replay-editor" data-replay-editor="${entryId}" hidden>
+
+                <div class="replay-editor" data-replay-editor="${entryId}">
                     ${editorMarkup}
                 </div>
                 <div class="replay-result-card" data-replay-result="${entryId}">
@@ -53,8 +61,6 @@ export class ReplayCoordinator {
         `;
     }
 
-
-
     renderEditor(entryId, request) {
         if (!request) {
             return '<p class="muted">Request metadata missing.</p>';
@@ -71,13 +77,13 @@ export class ReplayCoordinator {
                 <div class="replay-request-line">
                     <label class="editor-field method-field">
                         <span>Method</span>
-                        <select data-replay-field="method">
+                        <select class="replay-editor-method" data-replay-field="method">
                             ${this.renderMethodOptions(method)}
                         </select>
                     </label>
                     <label class="editor-field grow">
                         <span>Target URL</span>
-                        <input type="text" data-replay-field="url" value="${safeUrl}" spellcheck="false" />
+                        <input class="replay-editor-url" type="text" data-replay-field="url" value="${safeUrl}" spellcheck="false" />
                     </label>
                 </div>
                 <p class="replay-editor-note">Update the URL, headers, or body before sending. Restricted headers may be dropped by your browser.</p>
@@ -216,8 +222,11 @@ export class ReplayCoordinator {
         } else {
             editor.setAttribute('hidden', 'true');
             button.textContent = button.dataset.originalLabel ?? 'Replay Now';
-            this.setSendButtonEnabled(entryId, false);
         }
+
+        const editorIsClosed = document.querySelector(`[data-replay-editor="${entryId}"]`)?.hidden ?? true;
+        const replayNowButton = this.listElement.querySelector(`[data-replay-toggle="${entryId}"]`);
+        replayNowButton.textContent = editorIsClosed ? 'Show Edior' : 'Hide Editor';
     }
 
     setSendButtonEnabled(entryId, enabled) {
@@ -478,6 +487,8 @@ export class ReplayCoordinator {
         const bodyText = escapeHtml(result.body ?? EMPTY_BODY);
         const session = result.sessionId ? this.sessions.get(result.sessionId) : null;
         const targetEntryId = session?.resolvedEntryId;
+
+
         const anchorMarkup = targetEntryId
             ? this.buildReplayAnchor(targetEntryId)
             : '<span class="replay-anchor pending">Awaiting capture...</span>';
