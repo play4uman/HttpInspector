@@ -1,5 +1,7 @@
 ﻿import { REPLAY_CORRELATION_HEADER, RESTRICTED_HEADER_NAMES, RESTRICTED_HEADER_PREFIXES } from '../../constants.js';
 import { EMPTY_BODY, escapeHtml, formatBodyText, getHeaderValue, trimId } from '../../utils/format.js';
+import { renderMethodPill } from '../common/pills.js';
+import { renderMiniSummaryHeader } from '../log-visualization/log-card-mini-summary-header.js';
 import { renderHeaders } from '../log-visualization/templates.js';
 
 export class ReplayCoordinator {
@@ -28,8 +30,10 @@ export class ReplayCoordinator {
         const curlClass = curlCommand ? 'code-block' : 'code-block muted';
         const psClass = psCommand ? 'code-block' : 'code-block muted';
         const editorMarkup = request ? this.renderEditor(entryId, request) : '<p class="muted">Original request unavailable.</p>';
+        const headerMarkup = this.renderReplayHeader(entryId, request);
         return `
             <div class="replay-section" data-replay-entry="${entryId}">
+                ${headerMarkup}
                 <p class="replay-hint">Review the captured request, adjust headers or body, and replay it or copy a command.</p>
                 <div class="replay-actions">
                     <button type="button" class="replay-action secondary" data-replay-toggle="${entryId}" >
@@ -58,6 +62,37 @@ export class ReplayCoordinator {
                     <pre class="${psClass}" id="${psPreId}" data-has-command="${psCommand ? 'true' : 'false'}">${psText}</pre>
                 </div>
             </div>
+        `;
+    }
+
+    renderReplayHeader(entryId, request) {
+        if (!request) {
+            return '';
+        }
+        const path = `${request.path ?? ''}${request.queryString ?? ''}` || '/';
+        const safePath = escapeHtml(path);
+        const encodedPath = encodeURIComponent(path);
+        const durationValue = Number(request?.durationMs);
+        const durationText = Number.isFinite(durationValue)
+            ? `${durationValue.toFixed(2)} ms`
+            : 'pending';
+        const shortId = trimId(request.id ?? entryId);
+        const summary = renderMiniSummaryHeader(
+            request.timestamp,
+            durationText,
+            request.remoteIp ?? 'unknown',
+            shortId.display,
+            shortId.full
+        );
+        return `
+                <div class="replay-summary">
+                    <div class="replay-summary-title">
+                        ${renderMethodPill(request.method)}
+                        <span class="path-text" title="${safePath}">${safePath}</span>
+                        <button class="copy-url-btn" type="button" data-copy-url="${encodedPath}">Copy URL</button>
+                    </div>
+                    ${summary}
+                </div>
         `;
     }
 
@@ -707,3 +742,5 @@ export class ReplayCoordinator {
         return String(value ?? '').replace(/'/g, "''");
     }
 }
+
+

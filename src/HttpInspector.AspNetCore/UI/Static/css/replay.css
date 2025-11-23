@@ -4,6 +4,25 @@
             padding-top: 1rem;
         }
 
+.replay-summary {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.85rem;
+}
+
+.replay-summary-title {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.replay-summary .mini-summary {
+    margin: 0.75rem 0 0;
+}
+
 .replay-toggle {
             border: 1px solid rgba(148, 163, 184, 0.35);
             background: transparent;
