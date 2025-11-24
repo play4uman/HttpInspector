@@ -480,7 +480,7 @@ export class ReplayCoordinator {
 
     renderReplayResultContent(result) {
         const statusText = typeof result.status === 'number' ? String(result.status) : '-';
-        const statusClass = typeof result.status === 'number' ? `status-${result.status}` : 'status-na';
+        const statusClass = typeof result.status === 'number' ? `status-${result.status.toString()[0]}xx` : 'status-na';
         const duration = Number.isFinite(result.durationMs) ? `${result.durationMs.toFixed(2)} ms` : '-';
         const safeUrl = escapeHtml(result.url ?? '');
         const headersHtml = renderHeaders(result.headers);
@@ -493,11 +493,13 @@ export class ReplayCoordinator {
             ? this.buildReplayAnchor(targetEntryId)
             : '<span class="replay-anchor pending">Awaiting capture...</span>';
         return `
-            <div class="replay-meta-row">
+            <div class="title-row">
+                <div class="title-left">
+                    <span class="replay-url" title="${safeUrl}">${safeUrl}</span>
+                    <span class="replay-duration">${duration}</span>
+                    ${anchorMarkup}
+                </div>
                 <span class="status-pill ${statusClass}">${statusText}</span>
-                <span class="replay-url" title="${safeUrl}">${safeUrl}</span>
-                <span class="replay-duration">${duration}</span>
-                ${anchorMarkup}
             </div>
             <div class="replay-card">
                 <header>Headers</header>
