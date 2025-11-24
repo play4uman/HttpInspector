@@ -1,8 +1,10 @@
-﻿import { escapeHtml, formatTimestamp, getStatusBucket, trimId } from '../../utils/format.js';
-import { renderRow, renderSummaryItem, renderTimeline } from './templates.js';
+﻿import { escapeHtml, getStatusBucket, trimId } from '../../utils/format.js';
+import { renderRow, renderTimeline } from './templates.js';
 import { renderOutgoingSection } from '../outgoing/outgoing-renderer.js';
 import { renderMethodPill, renderStatusPill } from '../common/pills.js';
 import { renderDetailsPanel } from '../common/details.js';
+import { renderMiniSummaryHeader } from './log-card-mini-summary-header.js';
+
 
 export function renderLogCard(pair, { replay, outgoingStore }) {
     const request = pair.request;
@@ -14,6 +16,7 @@ export function renderLogCard(pair, { replay, outgoingStore }) {
     const resBodyId = `${pair.id}-res-body`;
     const shortId = trimId(pair.id);
     const fullPath = `${request?.path ?? ''}${request?.queryString ?? ''}` || '/';
+    const miniSummary = renderMiniSummaryHeader(request?.timestamp, durationText, request?.remoteIp ?? 'unknown', shortId.display, shortId.full)
 
     const timeline = renderTimeline(response?.durationMs);
     const requestRow = renderRow('REQUEST', 'request', request, reqBodyId, 'section-card request-card');
@@ -42,12 +45,7 @@ export function renderLogCard(pair, { replay, outgoingStore }) {
                 </div>
                 ${renderStatusPill(status, statusBucket)}
             </div>
-            <div class="mini-summary">
-                ${renderSummaryItem('🗓', formatTimestamp(request?.timestamp))}
-                ${renderSummaryItem('⏲', durationText)}
-                ${renderSummaryItem('📡', request?.remoteIp ?? 'unknown')}
-                ${renderSummaryItem('#', shortId.display, shortId.full)}
-            </div>
+            ${miniSummary}
             ${timeline}
             ${detailsPanel}
             ${outgoingPanel}
