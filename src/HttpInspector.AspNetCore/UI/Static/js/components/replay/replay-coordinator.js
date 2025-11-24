@@ -280,6 +280,11 @@ export class ReplayCoordinator {
             delete button.dataset.replaySending;
             button.disabled = false;
             button.textContent = button.dataset.originalSendLabel ?? 'Send Edited Request';
+
+            const editor = this.listElement.querySelector(`[data-replay-editor="${entryId}"]`);
+            editor.hidden = true;
+            const showEditorButton = this.listElement.querySelector(`[data-replay-toggle="${entryId}"]`);
+            showEditorButton.textContent = 'Show Editor';
         }
     }
 
