@@ -27,6 +27,28 @@ It provides immediate clarity into what the API is doing **right now**, especial
 
 ---
 
+# 🚀 Quick Start
+
+Enable HttpInspector with **two lines**:
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+#if DEBUG
+builder.Services.AddHttpInspector();
+#endif
+
+var app = builder.Build();
+
+#if DEBUG
+app.UseHttpInspector();
+#endif
+
+app.Run();
+```
+
+---
+
 # 🖼 Dashboard Preview
 1. Install the NuGet package:
    ```bash
@@ -141,28 +163,6 @@ Returns an efficient JSON array with incremental fetch capability, ideal for:
 - custom dashboards  
 - debugging pipelines  
 - IDE integrations  
-
----
-
-# 🚀 Quick Start
-
-Enable HttpInspector with **two lines**:
-
-```csharp
-var builder = WebApplication.CreateBuilder(args);
-
-#if DEBUG
-builder.Services.AddHttpInspector();
-#endif
-
-var app = builder.Build();
-
-#if DEBUG
-app.UseHttpInspector();
-#endif
-
-app.Run();
-```
 
 ---
 
