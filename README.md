@@ -72,18 +72,27 @@ Automatically captures all `HttpClient` calls triggered during request processin
 
 ---
 
-## 🔁 Request replay built-in
+## 🔁 Request replay & editing built-in
 
-Replay any captured request directly:
+Replay any captured request — or fully **edit it before sending**.
 
-- Instant replay using internal loopback  
+Edit anything:
+- URL and query parameters  
+- HTTP method  
+- Headers (add/remove/change)  
+- Body (JSON, XML, form-data, raw text)
+
+Features:
+- Instant replay via internal loopback  
+- Rich request editor with live preview  
 - Copy as:
   - `curl`
   - PowerShell
-  - Raw HTTP format  
-- Replay results rendered directly in the UI  
+  - Raw HTTP
+- Replay results shown directly inside the UI  
 
-![Replay Feature](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.4.0/replay_request.png?raw=true)
+![Replay Feature](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.5.0/replay_request.png?raw=true)
+
 
 ---
 
