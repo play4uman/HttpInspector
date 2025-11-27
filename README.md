@@ -30,7 +30,7 @@ It provides immediate clarity into what the API is doing **right now**, especial
 # 🖼 Dashboard Preview
 1. Install the NuGet package:
    ```bash
-   dotnet add package HttpInspector.AspNetCore --version 1.4.0
+   dotnet add package HttpInspector.AspNetCore --version 1.5.0
    ```
   2. Use the [Quick Start Guide](#-quick-start) to set up the package in your ASP.NET project
   3. Open the dashboard:
