@@ -1,4 +1,4 @@
-﻿import {
+import {
     describeFromSelection,
     describeToSelection,
     formatDateInputValue,
@@ -141,4 +141,50 @@ export class TimeRangeControls {
             cancelButton: document.querySelector(`[data-cancel="${kind}"]`)
         };
     }
+    applyQuickRange(rangeKey) {
+        const relative = this.parseQuickRange(rangeKey);
+        if (!relative) {
+            return false;
+        }
+        this.state.timeRange.from = {
+            mode: 'relative',
+            relative,
+            absolute: null
+        };
+        this.state.timeRange.to = {
+            mode: 'now',
+            relative: { days: 0, hours: 0, minutes: 0 },
+            absolute: null
+        };
+        this.updateLabels();
+        this.onChange?.();
+        return true;
+    }
+
+    parseQuickRange(rangeKey) {
+        if (!rangeKey) {
+            return null;
+        }
+        const match = /^([0-9]+)([mhd])$/i.exec(rangeKey.trim());
+        if (!match) {
+            return null;
+        }
+        const amount = Number(match[1]);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return null;
+        }
+        const unit = match[2].toLowerCase();
+        const relative = { days: 0, hours: 0, minutes: 0 };
+        if (unit === 'm') {
+            relative.minutes = amount;
+        } else if (unit === 'h') {
+            relative.hours = amount;
+        } else if (unit === 'd') {
+            relative.days = amount;
+        } else {
+            return null;
+        }
+        return relative;
+    }
 }
+

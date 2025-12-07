@@ -1,26 +1,27 @@
-﻿import { EMPTY_BODY, formatBodyText, matchesBucket, matchesSearch } from '../../utils/format.js';
-import { htmlToElement } from '../../utils/dom.js';
+import { escapeHtml, matchesSearch } from '../../utils/format.js';
 import { renderLogCard } from './log-card.js';
-import { renderOutgoingStandaloneCards } from '../outgoing/outgoing-renderer.js';
 
 export class LogList {
-    constructor(state, { outgoingStore, replay }) {
+    constructor(state, { replay }) {
         this.state = state;
-        this.outgoingStore = outgoingStore;
         this.replay = replay;
-        this.element = document.getElementById('logList');
-        this.renderedCards = new Map();
-        this.cardSignatures = new Map();
+        this.listElement = document.getElementById('logList');
+        this.detailElement = document.getElementById('detailPanel');
+        this.bindListEvents();
+        this.bindDetailEvents();
     }
 
     getElement() {
-        return this.element;
+        return this.detailElement;
     }
 
     clearView() {
-        this.renderedCards.clear();
-        this.cardSignatures.clear();
-        this.element.innerHTML = '';
+        if (this.listElement) {
+            this.listElement.innerHTML = '';
+        }
+        if (this.detailElement) {
+            this.detailElement.innerHTML = '<p class="muted">Select a request to inspect.</p>';
+        }
     }
 
     upsert(entry) {
@@ -35,64 +36,69 @@ export class LogList {
     }
 
     render() {
-        const filtered = this.filterEntries();
-        if (!filtered.length) {
-            this.clearView();
-            this.outgoingStore.removeMissingParents(new Set());
-            const hasOutgoingOnly = renderOutgoingStandaloneCards(this.element, this.outgoingStore);
-            if (!hasOutgoingOnly) {
-                this.element.innerHTML = '<p class="muted" data-empty-message>No events captured yet.</p>';
+        const pairs = this.filterEntries();
+        if (this.listElement) {
+            this.listElement.innerHTML = pairs.length
+                ? pairs.map(pair => this.renderRow(pair)).join('')
+                : '<p class="muted list-empty">No requests yet.</p>';
+        }
+        if (this.state.selectedEntryId) {
+            const selected = pairs.find(pair => pair.id === this.state.selectedEntryId);
+            if (selected) {
+                this.renderDetail(selected);
+                this.highlightSelectedRow();
+                return;
             }
-            this.bindCopyButtons();
-            this.replay.bindInteractions();
+            this.state.selectedEntryId = null;
+        }
+        this.clearDetail();
+    }
+
+    renderRow(pair) {
+        const request = pair.request;
+        const response = pair.response;
+        const method = request?.method ?? 'HTTP';
+        const path = `${request?.path ?? ''}${request?.queryString ?? ''}` || '/';
+        const status = response?.statusCode ?? '-';
+        const duration = response?.durationMs != null ? `${response.durationMs.toFixed(1)} ms` : '-';
+        const timestamp = request?.timestamp || response?.timestamp || '';
+        const timeText = timestamp ? new Date(timestamp).toLocaleTimeString() : '-';
+        const isSelected = this.state.selectedEntryId === pair.id;
+        const statusClass = this.statusClass(status);
+        const methodClass = method.toLowerCase();
+        return `
+            <button type="button" class="request-row${isSelected ? ' is-selected' : ''}" data-entry-row="${pair.id}">
+                <span class="request-method method-${methodClass}">${escapeHtml(method)}</span>
+                <span class="request-path" title="${escapeHtml(path)}">${escapeHtml(path)}</span>
+                <span class="request-status status-pill ${statusClass}">${escapeHtml(String(status))}</span>
+                <span class="request-duration">${escapeHtml(duration)}</span>
+                <span class="request-time">${escapeHtml(timeText)}</span>
+            </button>
+        `;
+    }
+
+    renderDetail(pair) {
+        if (!this.detailElement) {
             return;
         }
-
-        const placeholder = this.element.querySelector('[data-empty-message]');
-        if (placeholder) {
-            placeholder.remove();
-        }
-
-        const seen = new Set();
-        filtered.forEach((pair, index) => {
-            const cardId = pair.id;
-            seen.add(cardId);
-            const signature = this.computeCardSignature(pair);
-            let cardElement = this.renderedCards.get(cardId);
-            if (!cardElement) {
-                cardElement = this.buildCardElement(pair);
-                this.renderedCards.set(cardId, cardElement);
-                this.cardSignatures.set(cardId, signature);
-            } else if (this.cardSignatures.get(cardId) !== signature) {
-                const preservedState = this.captureCardState(cardElement);
-                const updatedElement = this.buildCardElement(pair);
-                this.applyCardState(updatedElement, preservedState);
-                cardElement.replaceWith(updatedElement);
-                cardElement = updatedElement;
-                this.renderedCards.set(cardId, cardElement);
-                this.cardSignatures.set(cardId, signature);
-            }
-            this.ensureCardPosition(cardElement, index);
-        });
-
-        for (const [cardId, element] of Array.from(this.renderedCards.entries())) {
-            if (!seen.has(cardId)) {
-                element.remove();
-                this.renderedCards.delete(cardId);
-                this.cardSignatures.delete(cardId);
-            }
-        }
-
-        this.outgoingStore.removeMissingParents(seen);
-        renderOutgoingStandaloneCards(this.element, this.outgoingStore);
-        this.bindCopyButtons();
+        const markup = renderLogCard(pair, { replay: this.replay });
+        this.detailElement.innerHTML = markup;
         this.replay.bindInteractions();
+    }
+
+    clearDetail() {
+        if (!this.detailElement) {
+            return;
+        }
+        this.detailElement.innerHTML = '<p class="muted">Select a request to inspect.</p>';
     }
 
     filterEntries() {
         const search = this.state.search;
-        const method = this.state.method;
-        const bucket = this.state.statusBucket;
+        const methodFilters = this.state.methods;
+        const statusFilters = this.state.statusBuckets;
+        const hasMethodFilters = methodFilters instanceof Set && methodFilters.size > 0;
+        const hasStatusFilters = statusFilters instanceof Set && statusFilters.size > 0;
         const items = Array.from(this.state.entries.values()).sort((a, b) => {
             const left = (a.response?.timestamp || a.request?.timestamp || '').localeCompare(
                 b.response?.timestamp || b.request?.timestamp || ''
@@ -106,11 +112,21 @@ export class LogList {
             if (!request && !response) {
                 continue;
             }
-            if (method && request?.method !== method) {
-                continue;
+            if (hasMethodFilters) {
+                const normalizedMethod = request?.method?.toUpperCase();
+                if (!normalizedMethod || !methodFilters.has(normalizedMethod)) {
+                    continue;
+                }
             }
-            if (bucket && !matchesBucket(response, bucket)) {
-                continue;
+            if (hasStatusFilters) {
+                const statusValue = Number(response?.statusCode);
+                if (!Number.isFinite(statusValue)) {
+                    continue;
+                }
+                const bucketKey = String(Math.floor(statusValue / 100));
+                if (!statusFilters.has(bucketKey)) {
+                    continue;
+                }
             }
             if (search && !matchesSearch(request, response, search)) {
                 continue;
@@ -120,143 +136,129 @@ export class LogList {
         return filtered;
     }
 
-    computeCardSignature(pair) {
-        return JSON.stringify({
-            request: pair.request ?? null,
-            response: pair.response ?? null,
-            outgoing: this.outgoingStore.snapshot(pair.id)
-        });
-    }
-
-    buildCardElement(pair) {
-        const markup = renderLogCard(pair, {
-            outgoingStore: this.outgoingStore,
-            replay: this.replay
-        });
-        return htmlToElement(markup);
-    }
-
-    ensureCardPosition(cardElement, index) {
-        const current = this.element.children[index];
-        if (current !== cardElement) {
-            this.element.insertBefore(cardElement, current || null);
-        }
-    }
-
-    captureCardState(cardElement) {
-        const detailStates = Array.from(cardElement.querySelectorAll('details')).map(detail => detail.open);
-        return { detailStates };
-    }
-
-    applyCardState(cardElement, snapshot) {
-        if (!snapshot) {
+    selectEntry(entryId) {
+        if (!entryId) {
             return;
         }
-        const details = cardElement.querySelectorAll('details');
-        details.forEach((detail, index) => {
-            if (snapshot.detailStates[index]) {
-                detail.open = true;
+        const pair = this.state.entries.get(entryId);
+        if (!pair) {
+            return;
+        }
+        this.state.selectedEntryId = entryId;
+        this.highlightSelectedRow();
+        this.renderDetail(pair);
+    }
+
+    highlightSelectedRow() {
+        this.listElement?.querySelectorAll('.request-row').forEach(row => {
+            row.classList.toggle('is-selected', row.getAttribute('data-entry-row') === this.state.selectedEntryId);
+        });
+    }
+
+    selectNext() {
+        const rows = Array.from(this.listElement?.querySelectorAll('.request-row') ?? []);
+        if (!rows.length) {
+            return;
+        }
+        const index = rows.findIndex(row => row.classList.contains('is-selected'));
+        const nextIndex = index === -1 ? 0 : Math.min(rows.length - 1, index + 1);
+        const nextRow = rows[nextIndex];
+        this.selectEntry(nextRow?.getAttribute('data-entry-row'));
+        nextRow?.scrollIntoView({ block: 'nearest' });
+    }
+
+    selectPrevious() {
+        const rows = Array.from(this.listElement?.querySelectorAll('.request-row') ?? []);
+        if (!rows.length) {
+            return;
+        }
+        const index = rows.findIndex(row => row.classList.contains('is-selected'));
+        const prevIndex = index === -1 ? rows.length - 1 : Math.max(0, index - 1);
+        const prevRow = rows[prevIndex];
+        this.selectEntry(prevRow?.getAttribute('data-entry-row'));
+        prevRow?.scrollIntoView({ block: 'nearest' });
+    }
+
+    triggerReplayForSelection() {
+        const entryId = this.state.selectedEntryId;
+        if (!entryId) {
+            return;
+        }
+        const button = this.detailElement?.querySelector(`[data-replay-send="${entryId}"]`);
+        button?.click();
+    }
+
+    bindListEvents() {
+        this.listElement?.addEventListener('click', event => {
+            const row = event.target.closest('[data-entry-row]');
+            if (!row) {
+                return;
+            }
+            this.selectEntry(row.getAttribute('data-entry-row'));
+        });
+    }
+
+    bindDetailEvents() {
+        this.detailElement?.addEventListener('click', event => {
+            const primaryTab = event.target.closest('[data-detail-tab]');
+            if (primaryTab) {
+                this.activatePanel(primaryTab);
+                return;
+            }
+            const ioTab = event.target.closest('[data-io-tab]');
+            if (ioTab) {
+                this.activateIoTab(ioTab);
+                return;
+            }
+            const copyBtn = event.target.closest('[data-copy-content]');
+            if (copyBtn) {
+                this.copyContent(copyBtn.getAttribute('data-copy-content'));
             }
         });
     }
 
-    bindCopyButtons() {
-        this.hydrateBodies();
-        this.element.querySelectorAll('[data-copy-body]').forEach(button => {
-            if (button.dataset.copyBodyWired === 'true') {
-                return;
-            }
-            button.dataset.copyBodyWired = 'true';
-            button.addEventListener('click', async () => {
-                const targetId = button.getAttribute('data-copy-body');
-                const target = document.getElementById(targetId);
-                if (!target) {
-                    return;
-                }
-                try {
-                    await navigator.clipboard.writeText(target.textContent ?? '');
-                    button.textContent = 'Copied!';
-                    setTimeout(() => (button.textContent = 'Copy'), 1500);
-                } catch {
-                    button.textContent = 'Failed';
-                    setTimeout(() => (button.textContent = 'Copy'), 1500);
-                }
-            });
-        });
-
-        this.element.querySelectorAll('[data-copy-url]').forEach(button => {
-            if (button.dataset.copyUrlWired === 'true') {
-                return;
-            }
-            button.dataset.copyUrlWired = 'true';
-            button.addEventListener('click', async () => {
-                const encoded = button.getAttribute('data-copy-url');
-                const url = decodeURIComponent(encoded ?? '');
-                try {
-                    await navigator.clipboard.writeText(url);
-                    button.textContent = 'Copied';
-                    setTimeout(() => (button.textContent = 'Copy URL'), 1500);
-                } catch {
-                    button.textContent = 'Failed';
-                    setTimeout(() => (button.textContent = 'Copy URL'), 1500);
-                }
-            });
-        });
-
-        this.element.querySelectorAll('[data-copy-headers]').forEach(button => {
-            if (button.dataset.copyHeadersWired === 'true') {
-                return;
-            }
-            button.dataset.copyHeadersWired = 'true';
-            button.addEventListener('click', async () => {
-                const payload = button.getAttribute('data-copy-headers');
-                try {
-                    const parsed = JSON.parse(payload);
-                    const text = Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join('\n');
-                    await navigator.clipboard.writeText(text);
-                    button.textContent = 'Copied!';
-                    setTimeout(() => (button.textContent = 'Copy All'), 1500);
-                } catch {
-                    button.textContent = 'Failed';
-                    setTimeout(() => (button.textContent = 'Copy All'), 1500);
-                }
-            });
-        });
-
-        this.element.querySelectorAll('[data-copy-command]').forEach(button => {
-            if (button.dataset.copyCommandWired === 'true') {
-                return;
-            }
-            button.dataset.copyCommandWired = 'true';
-            button.addEventListener('click', async () => {
-                const targetId = button.getAttribute('data-copy-command');
-                const target = document.getElementById(targetId);
-                if (!target || target.dataset.hasCommand !== 'true') {
-                    button.textContent = 'Unavailable';
-                    setTimeout(() => (button.textContent = 'Copy'), 1500);
-                    return;
-                }
-                try {
-                    await navigator.clipboard.writeText(target.textContent ?? '');
-                    button.textContent = 'Copied!';
-                    setTimeout(() => (button.textContent = 'Copy'), 1500);
-                } catch {
-                    button.textContent = 'Failed';
-                    setTimeout(() => (button.textContent = 'Copy'), 1500);
-                }
-            });
+    activatePanel(button) {
+        const target = button.getAttribute('data-detail-tab');
+        if (!target || !this.detailElement) {
+            return;
+        }
+        this.detailElement.querySelectorAll('[data-detail-tab]').forEach(tab => tab.classList.toggle('is-active', tab === button));
+        this.detailElement.querySelectorAll('[data-tab-panel]').forEach(panel => {
+            panel.classList.toggle('is-active', panel.getAttribute('data-tab-panel') === target);
         });
     }
 
-    hydrateBodies() {
-        this.element.querySelectorAll('pre[data-body]').forEach(pre => {
-            const encoded = pre.dataset.body;
-            if (!encoded) {
-                pre.textContent = EMPTY_BODY;
-                return;
-            }
-            const decoded = decodeURIComponent(encoded);
-            pre.textContent = formatBodyText(decoded);
+    activateIoTab(button) {
+        const group = button.closest('[data-io-tabs]');
+        if (!group) {
+            return;
+        }
+        const target = button.getAttribute('data-io-tab');
+        group.querySelectorAll('.io-tab').forEach(tab => tab.classList.toggle('is-active', tab === button));
+        const panels = group.parentElement?.querySelectorAll('[data-io-panel]') ?? [];
+        panels.forEach(panel => {
+            panel.classList.toggle('is-active', panel.getAttribute('data-io-panel') === target);
         });
+    }
+
+    copyContent(encoded) {
+        if (!encoded) {
+            return;
+        }
+        try {
+            const value = decodeURIComponent(encoded);
+            navigator.clipboard.writeText(value);
+        } catch {
+            // ignore
+        }
+    }
+
+    statusClass(status) {
+        const code = Number(status);
+        if (!Number.isFinite(code)) {
+            return 'status-na';
+        }
+        const bucket = Math.floor(code / 100);
+        return `status-${bucket}xx`;
     }
 }

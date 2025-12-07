@@ -6,140 +6,188 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>HttpInspector</title>
 </head>
-<body data-base-path="__HTTP_INSPECTOR_BASE__">
-    <div class="layout">
-        <div class="header-bar">
-            <div>
-                <h1>HttpInspector</h1>
-                <p class="muted">Live HTTP request &amp; response stream</p>
+<body data-base-path="__HTTP_INSPECTOR_BASE__" class="theme-dark">
+    <div class="app-shell simplified">
+        <aside class="app-sidebar">
+            <div class="brand-row">
+                <div>
+                    <p class="eyebrow">HttpInspector</p>
+                    <p class="muted">Live HTTP inspector</p>
+                </div>
+                <button type="button" class="theme-toggle" id="themeToggle" aria-pressed="true" aria-label="Toggle light mode">
+                    <span class="toggle-icon" aria-hidden="true"></span>
+                </button>
             </div>
-            <div class="time-controls">
-                <div class="time-control" data-role="from">
-                    <button type="button" class="time-button" id="fromButton">
-                        <span class="label">From</span>
-                        <span class="value" id="fromLabel">All time</span>
-                    </button>
-                    <div class="time-popover" id="fromPopover">
-                        <div class="popover-header">
-                            <div>
-                                <p class="popover-title">From</p>
-                                <p class="popover-subtitle">Pick where the timeline should start.</p>
+            <label class="search-field" for="searchInput">
+                <span class="search-icon" aria-hidden="true"></span>
+                <input id="searchInput" type="search" placeholder="Search by path, ID, or method" autocomplete="off" spellcheck="false" />
+            </label>
+            <section class="sidebar-card">
+                <div class="sidebar-card-header">
+                    <span>Time range</span>
+                    <div class="time-quick-group" id="quickTimeButtons">
+                        <button type="button" data-range="all" class="is-active">All</button>
+                        <button type="button" data-range="5m">5m</button>
+                        <button type="button" data-range="1h">1h</button>
+                        <button type="button" data-range="1d">Today</button>
+                    </div>
+                </div>
+                <div class="time-controls" role="group" aria-label="Time range">
+                    <div class="time-control" data-role="from">
+                        <button type="button" class="time-button" id="fromButton">
+                            <span class="label">From</span>
+                            <span class="value" id="fromLabel">All time</span>
+                        </button>
+                        <div class="time-popover" id="fromPopover">
+                            <div class="popover-header">
+                                <div>
+                                    <p class="popover-title">From</p>
+                                    <p class="popover-subtitle">Pick where the timeline should start.</p>
+                                </div>
+                            </div>
+                            <div class="time-mode-group">
+                                <label class="time-mode-option">
+                                    <input type="radio" name="fromMode" value="all" checked />
+                                    All time
+                                </label>
+                                <label class="time-mode-option">
+                                    <input type="radio" name="fromMode" value="relative" />
+                                    Relative
+                                </label>
+                                <label class="time-mode-option">
+                                    <input type="radio" name="fromMode" value="absolute" />
+                                    Specific date
+                                </label>
+                            </div>
+                            <div class="time-section" data-owner="from" data-panel="relative">
+                                <p class="section-label">Relative offset</p>
+                                <div class="relative-fields">
+                                    <label>Days
+                                        <input type="number" id="fromRelativeDays" min="0" value="0" />
+                                    </label>
+                                    <label>Hours
+                                        <input type="number" id="fromRelativeHours" min="0" max="23" value="1" />
+                                    </label>
+                                    <label>Minutes
+                                        <input type="number" id="fromRelativeMinutes" min="0" max="59" value="0" />
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="time-section" data-owner="from" data-panel="absolute">
+                                <p class="section-label">Specific moment</p>
+                                <input type="datetime-local" id="fromAbsolute" />
+                            </div>
+                            <div class="popover-actions">
+                                <button type="button" class="ghost" data-cancel="from">Cancel</button>
+                                <button type="button" class="primary" data-apply="from">Apply</button>
                             </div>
                         </div>
-                        <div class="time-mode-group">
-                            <label class="time-mode-option">
-                                <input type="radio" name="fromMode" value="all" checked />
-                                All time
-                            </label>
-                            <label class="time-mode-option">
-                                <input type="radio" name="fromMode" value="relative" />
-                                Relative
-                            </label>
-                            <label class="time-mode-option">
-                                <input type="radio" name="fromMode" value="absolute" />
-                                Specific date
-                            </label>
-                        </div>
-                        <div class="time-section" data-owner="from" data-panel="relative">
-                            <p class="section-label">Relative offset (back from now)</p>
-                            <div class="relative-fields">
-                                <label>Days
-                                    <input type="number" id="fromRelativeDays" min="0" value="0" />
+                    </div>
+                    <div class="time-control" data-role="to">
+                        <button type="button" class="time-button live" id="toButton">
+                            <span class="label">To</span>
+                            <span class="value" id="toLabel">Now</span>
+                        </button>
+                        <div class="time-popover" id="toPopover">
+                            <div class="popover-header">
+                                <div>
+                                    <p class="popover-title">To</p>
+                                    <p class="popover-subtitle">Choose when the timeline should stop.</p>
+                                </div>
+                            </div>
+                            <div class="time-mode-group">
+                                <label class="time-mode-option">
+                                    <input type="radio" name="toMode" value="now" checked />
+                                    Now
                                 </label>
-                                <label>Hours
-                                    <input type="number" id="fromRelativeHours" min="0" max="23" value="1" />
+                                <label class="time-mode-option">
+                                    <input type="radio" name="toMode" value="relative" />
+                                    Relative
                                 </label>
-                                <label>Minutes
-                                    <input type="number" id="fromRelativeMinutes" min="0" max="59" value="0" />
+                                <label class="time-mode-option">
+                                    <input type="radio" name="toMode" value="absolute" />
+                                    Specific date
                                 </label>
                             </div>
-                        </div>
-                        <div class="time-section" data-owner="from" data-panel="absolute">
-                            <p class="section-label">Specific moment</p>
-                            <input type="datetime-local" id="fromAbsolute" />
-                        </div>
-                        <div class="popover-actions">
-                            <button type="button" class="ghost" data-cancel="from">Cancel</button>
-                            <button type="button" class="primary" data-apply="from">Apply</button>
+                            <div class="time-section" data-owner="to" data-panel="relative">
+                                <p class="section-label">Relative offset</p>
+                                <div class="relative-fields">
+                                    <label>Days
+                                        <input type="number" id="toRelativeDays" min="0" value="0" />
+                                    </label>
+                                    <label>Hours
+                                        <input type="number" id="toRelativeHours" min="0" max="23" value="0" />
+                                    </label>
+                                    <label>Minutes
+                                        <input type="number" id="toRelativeMinutes" min="0" max="59" value="0" />
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="time-section" data-owner="to" data-panel="absolute">
+                                <p class="section-label">Specific moment</p>
+                                <input type="datetime-local" id="toAbsolute" />
+                            </div>
+                            <div class="popover-actions">
+                                <button type="button" class="ghost" data-cancel="to">Cancel</button>
+                                <button type="button" class="primary" data-apply="to">Apply</button>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="time-control" data-role="to">
-                    <button type="button" class="time-button live" id="toButton">
-                        <span class="label">To</span>
-                        <span class="value" id="toLabel">Now (live)</span>
-                    </button>
-                    <div class="time-popover" id="toPopover">
-                        <div class="popover-header">
-                            <div>
-                                <p class="popover-title">To</p>
-                                <p class="popover-subtitle">Choose when the timeline should stop.</p>
-                            </div>
-                        </div>
-                        <div class="time-mode-group">
-                            <label class="time-mode-option">
-                                <input type="radio" name="toMode" value="now" checked />
-                                Now
-                            </label>
-                            <label class="time-mode-option">
-                                <input type="radio" name="toMode" value="relative" />
-                                Relative
-                            </label>
-                            <label class="time-mode-option">
-                                <input type="radio" name="toMode" value="absolute" />
-                                Specific date
-                            </label>
-                        </div>
-                        <div class="time-section" data-owner="to" data-panel="relative">
-                            <p class="section-label">Relative offset (back from now)</p>
-                            <div class="relative-fields">
-                                <label>Days
-                                    <input type="number" id="toRelativeDays" min="0" value="0" />
-                                </label>
-                                <label>Hours
-                                    <input type="number" id="toRelativeHours" min="0" max="23" value="0" />
-                                </label>
-                                <label>Minutes
-                                    <input type="number" id="toRelativeMinutes" min="0" max="59" value="0" />
-                                </label>
-                            </div>
-                        </div>
-                        <div class="time-section" data-owner="to" data-panel="absolute">
-                            <p class="section-label">Specific moment</p>
-                            <input type="datetime-local" id="toAbsolute" />
-                        </div>
-                        <div class="popover-actions">
-                            <button type="button" class="ghost" data-cancel="to">Cancel</button>
-                            <button type="button" class="primary" data-apply="to">Apply</button>
-                        </div>
-                    </div>
+            </section>
+            <section class="sidebar-card">
+                <p class="sidebar-label">Methods</p>
+                <div class="chip-grid" id="methodFilterChips">
+                    <button type="button" data-method="" class="is-active">All</button>
+                    <button type="button" data-method="GET">GET</button>
+                    <button type="button" data-method="POST">POST</button>
+                    <button type="button" data-method="PUT">PUT</button>
+                    <button type="button" data-method="PATCH">PATCH</button>
+                    <button type="button" data-method="DELETE">DELETE</button>
+                    <button type="button" data-method="HEAD">HEAD</button>
+                    <button type="button" data-method="OPTIONS">OPTIONS</button>
                 </div>
-            </div>
-        </div>
-        <div class="controls">
-            <input id="searchInput" type="text" placeholder="Search path, id, header" />
-            <select id="methodFilter">
-                <option value="">All methods</option>
-                <option>GET</option>
-                <option>POST</option>
-                <option>PUT</option>
-                <option>PATCH</option>
-                <option>DELETE</option>
-                <option>HEAD</option>
-                <option>OPTIONS</option>
-            </select>
-            <select id="statusFilter">
-                <option value="">All statuses</option>
-                <option value="2">2xx Success</option>
-                <option value="3">3xx Redirect</option>
-                <option value="4">4xx Client</option>
-                <option value="5">5xx Server</option>
-            </select>
-        </div>
-        <div class="log-list" id="logList"></div>
+            </section>
+            <section class="sidebar-card">
+                <p class="sidebar-label">Status</p>
+                <div class="chip-grid" id="statusFilterChips">
+                    <button type="button" data-status="" class="is-active">All</button>
+                    <button type="button" data-status="2">2xx</button>
+                    <button type="button" data-status="3">3xx</button>
+                    <button type="button" data-status="4">4xx</button>
+                    <button type="button" data-status="5">5xx</button>
+                </div>
+            </section>
+        </aside>
+        <main class="app-main">
+            <header class="main-toolbar">
+                <h1>Requests</h1>
+                <button type="button" class="help-btn" id="helpButton" aria-haspopup="dialog">?</button>
+            </header>
+            <section class="request-list" id="logList" aria-label="Request timeline">
+                <p class="muted">Waiting for traffic...</p>
+            </section>
+            <section class="detail-panel" id="detailPanel">
+                <p class="muted">Select a request to inspect.</p>
+            </section>
+        </main>
     </div>
+
+    <div class="help-modal" id="helpModal" hidden>
+        <div class="help-dialog" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+            <div class="help-header">
+                <h2 id="helpTitle">Shortcuts</h2>
+                <button type="button" class="close-help" id="closeHelpButton">Close</button>
+            </div>
+            <ul>
+                <li><span>Ctrl + F</span><span>Focus search</span></li>
+                <li><span>[ / ]</span><span>Cycle requests</span></li>
+                <li><span>R</span><span>Replay selected</span></li>
+                <li><span>Shift + L</span><span>Clear timeline</span></li>
+            </ul>
+        </div>
+    </div>
+
     <script type="module" src="__HTTP_INSPECTOR_BASE__/assets/httpinspector.js"></script>
-
-
 </body>
 </html>

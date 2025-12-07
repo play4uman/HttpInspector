@@ -1,4 +1,4 @@
-﻿import { POLL_INTERVAL_MS } from '../constants.js';
+import { POLL_INTERVAL_MS } from '../constants.js';
 
 export class EventStream {
     constructor(state, { onEvent, onBatchComplete } = {}) {
@@ -26,7 +26,7 @@ export class EventStream {
     }
 
     ensurePolling() {
-        const shouldStream = this.state.timeRange.to.mode === 'now';
+        const shouldStream = this.state.timeRange.to.mode === 'now' && this.state.autoRefresh !== false;
         if (shouldStream) {
             if (this.pollHandle == null) {
                 this.pollHandle = window.setInterval(() => this.fetchEvents(), POLL_INTERVAL_MS);

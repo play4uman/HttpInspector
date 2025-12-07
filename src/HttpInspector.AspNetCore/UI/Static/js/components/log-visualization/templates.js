@@ -1,75 +1,35 @@
-﻿import { encodeBody, escapeHtml } from '../../utils/format.js';
-import { renderDetailsPanel } from '../common/details.js';
+import { encodeBody, escapeHtml, formatBodyText } from '../../utils/format.js';
 
-export function renderTimeline(durationMs) {
-    if (!durationMs || Number.isNaN(durationMs)) {
-        return '';
+export function renderHeadersList(headers) {
+    const entries = headers ? Object.entries(headers) : [];
+    if (!entries.length) {
+        return '<p class="muted">No headers</p>';
     }
-    const width = Math.min(Math.max((Math.min(durationMs, 5000) / 5000) * 100, 6), 100);
     return `
-        <div>
-            <div class="timeline">
-                <div class="timeline-bar" style="width:${width}%"></div>
-            </div>
-        </div>
+        <dl class="headers-list">
+            ${entries.map(([key, value]) => `
+                <dt>${escapeHtml(key)}</dt>
+                <dd>${escapeHtml(value ?? '')}</dd>
+            `).join('')}
+        </dl>
     `;
 }
 
-export function renderSection(title, contentHtml, cardClass, _type, headers) {
-    const copyBtn = headers && Object.keys(headers).length
-        ? `<button class="copy-headers-btn" type="button" data-copy-headers='${JSON.stringify(headers)}'>Copy All</button>`
-        : '';
+export function renderBodyBlock(bodyId, body) {
+    const pretty = formatBodyText(body ?? '');
+    const encoded = encodeBody(body ?? '');
     return `
-        <div class="${cardClass}">
-            <header>${title}${copyBtn}</header>
-            ${contentHtml || '<p class="muted">None</p>'}
+        <div class="body-wrapper">
+            <button type="button" class="body-copy-btn" data-copy-content="${encoded}">Copy</button>
+            <pre id="${bodyId}" class="body-block">${escapeHtml(pretty)}</pre>
         </div>
     `;
-}
-
-export function renderBodySection(title, bodyId, body, cardClass) {
-    return `
-        <div class="${cardClass}">
-            <header>${title}<button class="copy-btn" type="button" data-copy-body="${bodyId}">Copy</button></header>
-            <pre id="${bodyId}" class="body-block" data-body="${encodeBody(body)}"></pre>
-        </div>
-    `;
-}
-
-export function renderRow(label, type, entry, bodyId, cardClass) {
-    const headersCard = renderSection('Headers', renderHeaders(entry?.headers), `${cardClass}`, type, entry?.headers);
-    const bodyCard = renderBodySection('Body', bodyId, entry?.body, cardClass);
-    const bodyHtml = `
-        <div class="section-divider"></div>
-        <div class="section-row">
-            ${headersCard}
-            ${bodyCard}
-        </div>
-    `;
-
-    return renderDetailsPanel(label, bodyHtml, {
-        detailsClass: `section-wrapper ${type}`,
-        summaryClass: 'section-title',
-        open: true
-    });
 }
 
 export function renderSummaryItem(icon, value, fullValue) {
     const titleAttr = fullValue ? `title="${escapeHtml(fullValue)}"` : '';
     return `<span class="summary-item" ${titleAttr}><span class="icon">${icon}</span>${escapeHtml(value ?? '-')}</span>`;
 }
-
 export function renderHeaders(headers) {
-    const entries = headers ? Object.entries(headers) : [];
-    if (!entries.length) {
-        return '<p class="muted">None</p>';
-    }
-    return `
-        <div class="headers-grid">
-            ${entries.map(([key, value]) => `
-                <span class="header-name">${escapeHtml(key)}</span>
-                <span>${escapeHtml(value)}</span>
-            `).join('')}
-        </div>
-    `;
+    return renderHeadersList(headers);
 }
