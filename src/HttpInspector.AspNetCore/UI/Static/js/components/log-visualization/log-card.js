@@ -10,14 +10,19 @@ export function renderLogCard(pair, { replay }) {
     const durationText = formatDuration(response?.durationMs);
     const timestampText = formatTimestamp(request?.timestamp ?? response?.timestamp);
     const responseStatus = response?.statusCode != null ? response.statusCode : '-';
-    const replaySection = request ? replay.renderPanel(pair.id, request) : '<p class="muted">Replay unavailable.</p>';
-
+    
+    const replayButton = request ? `
+        <button type="button" class="detail-tab replay-open-btn" data-replay-toggle="${pair.id}">
+            <span class="icon-send">➤</span> Replay
+        </button>
+    ` : '';
+    
     return `
         <article class="detail-card" data-detail-entry="${pair.id}">
             <div class="detail-tabs" role="tablist">
                 <button type="button" class="detail-tab is-active" data-detail-tab="request">Request</button>
                 <button type="button" class="detail-tab" data-detail-tab="response">Response</button>
-                <button type="button" class="detail-tab" data-detail-tab="replay">Replay</button>
+                ${replayButton}
             </div>
             <section class="detail-panel-section is-active" data-tab-panel="request">
                 ${renderRequestHeader(method, path, status, durationText, timestampText, request?.remoteIp)}
@@ -26,9 +31,6 @@ export function renderLogCard(pair, { replay }) {
             <section class="detail-panel-section" data-tab-panel="response">
                 ${renderResponseHeader(responseStatus, durationText)}
                 ${renderIoTabs('res', response?.headers, response?.body)}
-            </section>
-            <section class="detail-panel-section" data-tab-panel="replay">
-                ${replaySection}
             </section>
         </article>
     `;

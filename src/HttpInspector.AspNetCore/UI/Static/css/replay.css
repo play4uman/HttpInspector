@@ -24,6 +24,175 @@
             display: none;
         }
 
+/* Replay Modal */
+.replay-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.replay-modal[hidden] {
+    display: none;
+}
+
+.replay-modal-dialog {
+    width: 80%;
+    height: 80%;
+    max-width: 80vw;
+    max-height: 80vh;
+    background: var(--surface-elevated);
+    border-radius: 1rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.theme-dark .replay-modal-dialog {
+    background: #0f172a;
+}
+
+.theme-light .replay-modal-dialog {
+    background: #ffffff;
+}
+
+.replay-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--surface-card);
+    flex-shrink: 0;
+}
+
+.replay-modal-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.close-replay-modal {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 2rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.close-replay-modal:hover {
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--text-primary);
+}
+
+.replay-modal-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1.5rem;
+}
+
+/* Replay Tab Content */
+.replay-tab-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 2rem;
+    text-align: center;
+}
+
+.replay-tab-content .replay-hint {
+    margin: 0;
+    max-width: 400px;
+}
+
+.replay-tab-content .replay-action {
+    font-size: 0.95rem;
+    padding: 0.65rem 1.5rem;
+}
+
+/* Replay Open Button in Detail Tabs */
+.detail-tab.replay-open-btn {
+    background: linear-gradient(135deg, rgba(28, 210, 209, 0.15), rgba(28, 210, 209, 0.05));
+    border: 1px solid rgba(28, 210, 209, 0.3);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.detail-tab.replay-open-btn:hover {
+    background: linear-gradient(135deg, rgba(28, 210, 209, 0.25), rgba(28, 210, 209, 0.1));
+    border-color: rgba(28, 210, 209, 0.5);
+    color: var(--accent);
+}
+
+.detail-tab.replay-open-btn .icon-send {
+    font-size: 0.85em;
+}
+
+/* Replay Modal Tabs */
+.replay-modal-tabs {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 1.5rem;
+    background: var(--surface-card);
+    flex-shrink: 0;
+}
+
+.replay-modal-tab {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 0.75rem 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s ease, border-color 0.2s ease;
+    position: relative;
+    bottom: -1px;
+}
+
+.replay-modal-tab:hover {
+    color: var(--text-primary);
+}
+
+.replay-modal-tab.is-active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.replay-modal-panel {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1.5rem;
+}
+
+.replay-modal-panel.is-active {
+    display: block;
+}
+
 .replay-hint {
             margin: 0 0 0.6rem;
             font-size: 0.82rem;

@@ -7,11 +7,54 @@ export class ReplayCoordinator {
         this.sessions = new Map();
         this.listElement = null;
         this.entries = null;
+        this.modal = null;
+        this.modalContent = null;
+        this.closeModalBtn = null;
+        this.currentEntryId = null;
     }
 
     attach(listElement, entries) {
         this.listElement = listElement;
         this.entries = entries;
+        this.modal = document.getElementById('replayModal');
+        this.modalContent = document.getElementById('replayModalContent');
+        this.closeModalBtn = document.getElementById('closeReplayModal');
+        this.setupModalHandlers();
+    }
+
+    setupModalHandlers() {
+        if (!this.modal || !this.closeModalBtn) {
+            return;
+        }
+        this.closeModalBtn.addEventListener('click', () => this.closeModal());
+        this.modal.addEventListener('click', (event) => {
+            if (event.target === this.modal) {
+                this.closeModal();
+            }
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !this.modal?.hidden) {
+                this.closeModal();
+            }
+        });
+    }
+
+    openModal(entryId, content) {
+        if (!this.modal || !this.modalContent) {
+            return;
+        }
+        this.currentEntryId = entryId;
+        this.modalContent.innerHTML = content;
+        this.modal.hidden = false;
+        this.bindInteractions();
+    }
+
+    closeModal() {
+        if (!this.modal) {
+            return;
+        }
+        this.modal.hidden = true;
+        this.currentEntryId = null;
     }
 
     reset() {
@@ -30,32 +73,39 @@ export class ReplayCoordinator {
         const editorMarkup = request ? this.renderEditor(entryId, request) : '<p class="muted">Original request unavailable.</p>';
         return `
             <div class="replay-section" data-replay-entry="${entryId}">
-                <p class="replay-hint">Review the captured request, adjust headers or body, and replay it or copy a command.</p>
-                <div class="replay-actions">
-                    <button type="button" class="replay-action secondary" data-replay-toggle="${entryId}" >
-                        Hide Editor
-                    </button>
+                <div class="replay-modal-tabs" role="tablist">
+                    <button type="button" class="replay-modal-tab is-active" data-replay-modal-tab="editor" data-tab-entry="${entryId}">Editor</button>
+                    <button type="button" class="replay-modal-tab" data-replay-modal-tab="response" data-tab-entry="${entryId}">Response</button>
+                </div>
                 
-                    <button type="button" class="replay-action primary" data-replay-send="${entryId}">
-                        <span class="icon-send">➤</span>
-                        <span class="send-label">Send Request</span>
-                        <span class="send-spinner" aria-hidden="true"></span>
-                    </button>
-                </div>
+                <div class="replay-modal-panel is-active" data-replay-modal-panel="editor" data-panel-entry="${entryId}">
+                    <p class="replay-hint">Review the captured request, adjust headers or body, and replay it or copy a command.</p>
+                    <div class="replay-actions">
+                        <button type="button" class="replay-action primary" data-replay-send="${entryId}">
+                            <span class="icon-send">➤</span>
+                            <span class="send-label">Send Request</span>
+                            <span class="send-spinner" aria-hidden="true"></span>
+                        </button>
+                    </div>
 
-                <div class="replay-editor" data-replay-editor="${entryId}">
-                    ${editorMarkup}
+                    <div class="replay-editor" data-replay-editor="${entryId}">
+                        ${editorMarkup}
+                    </div>
+                    
+                    <div class="replay-command-card">
+                        <header>cURL<button class="copy-btn" type="button" data-copy-command="${curlPreId}">Copy</button></header>
+                        <pre class="${curlClass}" id="${curlPreId}" data-has-command="${curlCommand ? 'true' : 'false'}">${curlText}</pre>
+                    </div>
+                    <div class="replay-command-card">
+                        <header>PowerShell<button class="copy-btn" type="button" data-copy-command="${psPreId}">Copy</button></header>
+                        <pre class="${psClass}" id="${psPreId}" data-has-command="${psCommand ? 'true' : 'false'}">${psText}</pre>
+                    </div>
                 </div>
-                <div class="replay-result-card" data-replay-result="${entryId}">
-                    <p class="muted">Replay response will appear here.</p>
-                </div>
-                <div class="replay-command-card">
-                    <header>cURL<button class="copy-btn" type="button" data-copy-command="${curlPreId}">Copy</button></header>
-                    <pre class="${curlClass}" id="${curlPreId}" data-has-command="${curlCommand ? 'true' : 'false'}">${curlText}</pre>
-                </div>
-                <div class="replay-command-card">
-                    <header>PowerShell<button class="copy-btn" type="button" data-copy-command="${psPreId}">Copy</button></header>
-                    <pre class="${psClass}" id="${psPreId}" data-has-command="${psCommand ? 'true' : 'false'}">${psText}</pre>
+                
+                <div class="replay-modal-panel" data-replay-modal-panel="response" data-panel-entry="${entryId}">
+                    <div class="replay-result-card" data-replay-result="${entryId}">
+                        <p class="muted">Replay response will appear here after you send the request.</p>
+                    </div>
                 </div>
             </div>
         `;
@@ -149,91 +199,113 @@ export class ReplayCoordinator {
     }
 
     bindInteractions() {
-        if (!this.listElement || !this.entries) {
+        if (!this.entries) {
             return;
         }
-        this.listElement.querySelectorAll('[data-replay-toggle]').forEach(button => {
-            if (button.dataset.replayToggleWired === 'true') {
-                return;
-            }
-            button.dataset.replayToggleWired = 'true';
-            button.addEventListener('click', () => {
-                const entryId = button.getAttribute('data-replay-toggle');
-                this.handleReplayToggle(entryId, button);
-            });
-        });
-        this.listElement.querySelectorAll('[data-replay-send]').forEach(button => {
-            if (button.dataset.replaySendWired === 'true') {
-                return;
-            }
-            button.dataset.replaySendWired = 'true';
-            button.addEventListener('click', () => {
-                const entryId = button.getAttribute('data-replay-send');
-                this.handleReplaySend(entryId, button);
-            });
-        });
-        this.listElement.querySelectorAll('[data-add-header]').forEach(button => {
-            if (button.dataset.addHeaderWired === 'true') {
-                return;
-            }
-            button.dataset.addHeaderWired = 'true';
-            button.addEventListener('click', () => {
-                const entryId = button.getAttribute('data-add-header');
-                this.addHeaderRow(entryId);
-            });
-        });
-        this.listElement.querySelectorAll('[data-header-editor]').forEach(container => {
-            if (container.dataset.headerEditorWired === 'true') {
-                return;
-            }
-            container.dataset.headerEditorWired = 'true';
-            container.addEventListener('click', event => {
-                const target = event.target;
-                if (!(target instanceof HTMLElement)) {
+        
+        // Search in both listElement (detail panel) and modalContent
+        const containers = [this.listElement, this.modalContent].filter(Boolean);
+        
+        containers.forEach(container => {
+            container.querySelectorAll('[data-replay-toggle]').forEach(button => {
+                if (button.dataset.replayToggleWired === 'true') {
                     return;
                 }
-                if (!target.matches('[data-remove-header]')) {
+                button.dataset.replayToggleWired = 'true';
+                button.addEventListener('click', () => {
+                    const entryId = button.getAttribute('data-replay-toggle');
+                    this.handleReplayToggle(entryId, button);
+                });
+            });
+            
+            container.querySelectorAll('[data-replay-send]').forEach(button => {
+                if (button.dataset.replaySendWired === 'true') {
                     return;
                 }
-                const row = target.closest('[data-header-row]');
-                row?.remove();
-                const entryId = container.getAttribute('data-header-editor');
-                this.updateEmptyHeaders(entryId);
+                button.dataset.replaySendWired = 'true';
+                button.addEventListener('click', () => {
+                    const entryId = button.getAttribute('data-replay-send');
+                    this.handleReplaySend(entryId, button);
+                });
             });
+            
+            container.querySelectorAll('[data-add-header]').forEach(button => {
+                if (button.dataset.addHeaderWired === 'true') {
+                    return;
+                }
+                button.dataset.addHeaderWired = 'true';
+                button.addEventListener('click', () => {
+                    const entryId = button.getAttribute('data-add-header');
+                    this.addHeaderRow(entryId);
+                });
+            });
+            
+            container.querySelectorAll('[data-header-editor]').forEach(editorContainer => {
+                if (editorContainer.dataset.headerEditorWired === 'true') {
+                    return;
+                }
+                editorContainer.dataset.headerEditorWired = 'true';
+                editorContainer.addEventListener('click', event => {
+                    const target = event.target;
+                    if (!(target instanceof HTMLElement)) {
+                        return;
+                    }
+                    if (!target.matches('[data-remove-header]')) {
+                        return;
+                    }
+                    const row = target.closest('[data-header-row]');
+                    row?.remove();
+                    const entryId = editorContainer.getAttribute('data-header-editor');
+                    this.updateEmptyHeaders(entryId);
+                });
+            });
+            
+            container.querySelectorAll('[data-replay-modal-tab]').forEach(tabButton => {
+                if (tabButton.dataset.replayModalTabWired === 'true') {
+                    return;
+                }
+                tabButton.dataset.replayModalTabWired = 'true';
+                tabButton.addEventListener('click', () => {
+                    const tabName = tabButton.getAttribute('data-replay-modal-tab');
+                    const entryId = tabButton.getAttribute('data-tab-entry');
+                    this.switchReplayModalTab(entryId, tabName);
+                });
+            });
+        });
+    }
+    
+    switchReplayModalTab(entryId, tabName) {
+        const container = this.modalContent || this.listElement;
+        if (!container) {
+            return;
+        }
+        
+        // Update tabs
+        container.querySelectorAll(`[data-tab-entry="${entryId}"]`).forEach(tab => {
+            tab.classList.toggle('is-active', tab.getAttribute('data-replay-modal-tab') === tabName);
+        });
+        
+        // Update panels
+        container.querySelectorAll(`[data-panel-entry="${entryId}"]`).forEach(panel => {
+            panel.classList.toggle('is-active', panel.getAttribute('data-replay-modal-panel') === tabName);
         });
     }
 
     handleReplayToggle(entryId, button) {
-        if (!entryId || !this.listElement) {
+        if (!entryId) {
             return;
         }
-        const editor = this.listElement.querySelector(`[data-replay-editor="${entryId}"]`);
-        if (!editor) {
+        const entry = this.entries?.get(entryId);
+        if (!entry?.request) {
             return;
         }
-        const shouldOpen = editor.hasAttribute('hidden');
-        if (shouldOpen) {
-            editor.removeAttribute('hidden');
-            if (!button.dataset.originalLabel) {
-                button.dataset.originalLabel = button.textContent ?? 'Replay Now';
-            }
-            button.textContent = 'Hide Editor';
-            this.setSendButtonEnabled(entryId, true);
-        } else {
-            editor.setAttribute('hidden', 'true');
-            button.textContent = button.dataset.originalLabel ?? 'Replay Now';
-        }
-
-        const editorIsClosed = document.querySelector(`[data-replay-editor="${entryId}"]`)?.hidden ?? true;
-        const replayNowButton = this.listElement.querySelector(`[data-replay-toggle="${entryId}"]`);
-        replayNowButton.textContent = editorIsClosed ? 'Show Edior' : 'Hide Editor';
+        const content = this.renderPanel(entryId, entry.request);
+        this.openModal(entryId, content);
     }
 
     setSendButtonEnabled(entryId, enabled) {
-        if (!this.listElement) {
-            return;
-        }
-        const sendButton = this.listElement.querySelector(`[data-replay-send="${entryId}"]`);
+        const sendButton = this.modalContent?.querySelector(`[data-replay-send="${entryId}"]`) 
+            || this.listElement?.querySelector(`[data-replay-send="${entryId}"]`);
         if (sendButton) {
             if (sendButton.dataset.replaySending === 'true') {
                 return;
@@ -273,6 +345,8 @@ export class ReplayCoordinator {
             const enriched = { ...result, sessionId };
             this.storeReplayResult(sessionId, enriched);
             this.showReplayResult(entryId, enriched);
+            // Auto-switch to response tab
+            this.switchReplayModalTab(entryId, 'response');
         } catch (err) {
             this.sessions.delete(sessionId);
             this.showReplayError(entryId, err);
@@ -280,19 +354,15 @@ export class ReplayCoordinator {
             delete button.dataset.replaySending;
             button.disabled = false;
             button.textContent = button.dataset.originalSendLabel ?? 'Send Edited Request';
-
-            const editor = this.listElement.querySelector(`[data-replay-editor="${entryId}"]`);
-            editor.hidden = true;
-            const showEditorButton = this.listElement.querySelector(`[data-replay-toggle="${entryId}"]`);
-            showEditorButton.textContent = 'Show Editor';
         }
     }
 
     addHeaderRow(entryId, name = '', value = '') {
-        if (!entryId || !this.listElement) {
+        if (!entryId) {
             return;
         }
-        const container = this.listElement.querySelector(`[data-header-editor="${entryId}"]`);
+        const container = this.modalContent?.querySelector(`[data-header-editor="${entryId}"]`)
+            || this.listElement?.querySelector(`[data-header-editor="${entryId}"]`);
         if (!container) {
             return;
         }
@@ -328,11 +398,13 @@ export class ReplayCoordinator {
     }
 
     updateEmptyHeaders(entryId) {
-        if (!entryId || !this.listElement) {
+        if (!entryId) {
             return;
         }
-        const container = this.listElement.querySelector(`[data-header-editor="${entryId}"]`);
-        const emptyState = this.listElement.querySelector(`[data-headers-empty="${entryId}"]`);
+        const container = this.modalContent?.querySelector(`[data-header-editor="${entryId}"]`)
+            || this.listElement?.querySelector(`[data-header-editor="${entryId}"]`);
+        const emptyState = this.modalContent?.querySelector(`[data-headers-empty="${entryId}"]`)
+            || this.listElement?.querySelector(`[data-headers-empty="${entryId}"]`);
         if (!container || !emptyState) {
             return;
         }
@@ -346,10 +418,11 @@ export class ReplayCoordinator {
 
 
     getReplayForm(entryId) {
-        if (!entryId || !this.listElement) {
+        if (!entryId) {
             return null;
         }
-        return this.listElement.querySelector(`[data-replay-form="${entryId}"]`);
+        return this.modalContent?.querySelector(`[data-replay-form="${entryId}"]`)
+            || this.listElement?.querySelector(`[data-replay-form="${entryId}"]`);
     }
 
     collectEditedRequest(entryId, originalRequest) {
@@ -381,10 +454,11 @@ export class ReplayCoordinator {
     }
 
     readHeadersFromEditor(entryId, fallbackHeaders = {}) {
-        if (!entryId || !this.listElement) {
+        if (!entryId) {
             return { ...fallbackHeaders };
         }
-        const container = this.listElement.querySelector(`[data-header-editor="${entryId}"]`);
+        const container = this.modalContent?.querySelector(`[data-header-editor="${entryId}"]`)
+            || this.listElement?.querySelector(`[data-header-editor="${entryId}"]`);
         if (!container) {
             return { ...fallbackHeaders };
         }
@@ -418,14 +492,22 @@ export class ReplayCoordinator {
     }
 
     handleCorrelation(entry) {
-        const replayId = getHeaderValue(entry.headers ?? {}, REPLAY_CORRELATION_HEADER);
+        let replayId = getHeaderValue(entry.headers ?? {}, REPLAY_CORRELATION_HEADER);
         if (!replayId) {
             return;
         }
+        // Handle comma-separated values (in case of header accumulation) - take the last one
+        if (replayId.includes(',')) {
+            const ids = replayId.split(',').map(id => id.trim());
+            replayId = ids[ids.length - 1];
+            console.log('Multiple replay IDs found, using last one:', { all: ids, selected: replayId });
+        }
         const session = this.sessions.get(replayId);
         if (!session) {
+            console.warn('Replay correlation found but no session:', { replayId, availableSessions: Array.from(this.sessions.keys()) });
             return;
         }
+        console.log('Replay correlation matched:', { replayId, entryId: entry.id, sourceEntryId: session.sourceEntryId });
         session.resolvedEntryId = entry.id;
         this.sessions.set(replayId, session);
         this.updateReplayResultForSession(replayId);
@@ -438,13 +520,15 @@ export class ReplayCoordinator {
     }
 
     storeReplayResult(sessionId, result) {
+        // Ensure result has sessionId
+        const enrichedResult = { ...result, sessionId };
         const existing = this.sessions.get(sessionId);
         if (!existing) {
-            this.sessions.set(sessionId, { sourceEntryId: result.entryId ?? null, resolvedEntryId: null, result });
+            this.sessions.set(sessionId, { sourceEntryId: result.entryId ?? null, resolvedEntryId: null, result: enrichedResult });
             this.updateReplayResultForSession(sessionId);
             return;
         }
-        existing.result = result;
+        existing.result = enrichedResult;
         this.sessions.set(sessionId, existing);
         this.updateReplayResultForSession(sessionId);
     }
@@ -467,8 +551,19 @@ export class ReplayCoordinator {
     showReplayResult(entryId, result) {
         const container = this.getReplayContainer(entryId);
         if (container) {
-            container.innerHTML = this.renderReplayResultContent(result);
+            // Ensure result has sessionId for correlation lookup
+            const enrichedResult = result.sessionId ? result : { ...result, sessionId: this.findSessionIdBySourceEntry(entryId) };
+            container.innerHTML = this.renderReplayResultContent(enrichedResult);
         }
+    }
+    
+    findSessionIdBySourceEntry(entryId) {
+        for (const [sessionId, session] of this.sessions.entries()) {
+            if (session.sourceEntryId === entryId) {
+                return sessionId;
+            }
+        }
+        return null;
     }
 
     showReplayError(entryId, err) {
@@ -480,7 +575,8 @@ export class ReplayCoordinator {
     }
 
     getReplayContainer(entryId) {
-        return this.listElement?.querySelector(`[data-replay-result="${entryId}"]`);
+        return this.modalContent?.querySelector(`[data-replay-result="${entryId}"]`) 
+            || this.listElement?.querySelector(`[data-replay-result="${entryId}"]`);
     }
 
     renderReplayResultContent(result) {
@@ -539,6 +635,8 @@ export class ReplayCoordinator {
         const method = (request.method || 'GET').toUpperCase();
         const sanitizedHeaders = this.sanitizeHeaders(request.headers);
         const headers = { ...sanitizedHeaders };
+        // Remove any existing replay correlation header to avoid accumulation
+        delete headers[REPLAY_CORRELATION_HEADER];
         const body = this.normalizeReplayBody(request.body);
         if (sessionId) {
             headers[REPLAY_CORRELATION_HEADER] = sessionId;
