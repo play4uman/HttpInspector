@@ -5,7 +5,8 @@ export class FilterBar {
         this.elements = {
             search: document.getElementById('searchInput'),
             methodChips: document.getElementById('methodFilterChips'),
-            statusChips: document.getElementById('statusFilterChips')
+            statusChips: document.getElementById('statusFilterChips'),
+            statusSummary: document.querySelector('[data-status-summary]')
         };
     }
 
@@ -63,6 +64,7 @@ export class FilterBar {
         if (!value) {
             this.state.statusBuckets.clear();
             this.setActiveButton(this.elements.statusChips, button);
+            this.updateStatusSummary();
             this.onChange?.();
             return;
         }
@@ -74,6 +76,7 @@ export class FilterBar {
             button.classList.add('is-active');
         }
         this.updateAllChipState(this.elements.statusChips, this.state.statusBuckets);
+        this.updateStatusSummary();
         this.onChange?.();
     }
 
@@ -99,5 +102,27 @@ export class FilterBar {
         if (this.elements.statusChips) {
             this.elements.statusChips.querySelector('button[data-status=""]')?.classList.add('is-active');
         }
+        this.updateStatusSummary();
+    }
+
+    updateStatusSummary() {
+        const summary = this.elements.statusSummary;
+        if (!summary) {
+            return;
+        }
+        const buckets = Array.from(this.state.statusBuckets);
+        summary.innerHTML = '';
+        if (buckets.length === 0) {
+            summary.textContent = 'All statuses';
+            return;
+        }
+        const sorted = buckets.sort((a, b) => Number(a) - Number(b));
+        for (const bucket of sorted) {
+            const pill = document.createElement('span');
+            pill.className = `status-summary-pill status-summary-pill-${bucket}`;
+            pill.textContent = `${bucket}xx`;
+            summary.appendChild(pill);
+        }
     }
 }
+
