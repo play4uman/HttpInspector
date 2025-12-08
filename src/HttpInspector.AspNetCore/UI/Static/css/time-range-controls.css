@@ -109,6 +109,11 @@
     gap: 0.4rem;
 }
 
+.relative-fields label {
+    flex: 1;
+    min-width: 0;
+}
+
 .relative-fields input,
 .time-section input[type="datetime-local"] {
     border: 1px solid var(--border-color);
@@ -116,6 +121,9 @@
     background: var(--surface-card);
     color: inherit;
     padding: 0.3rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .popover-actions {
