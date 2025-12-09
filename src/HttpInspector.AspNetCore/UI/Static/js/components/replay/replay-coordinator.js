@@ -271,6 +271,26 @@ export class ReplayCoordinator {
                     this.switchReplayModalTab(entryId, tabName);
                 });
             });
+            
+            container.querySelectorAll('a.replay-anchor[href^="#entry-"]').forEach(anchor => {
+                if (anchor.dataset.replayAnchorWired === 'true') {
+                    return;
+                }
+                anchor.dataset.replayAnchorWired = 'true';
+                anchor.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    const href = anchor.getAttribute('href');
+                    const entryId = href.replace('#entry-', '');
+                    this.closeModal();
+                    // Give the modal time to close, then select the entry
+                    setTimeout(() => {
+                        const logList = this.listElement?.closest('.app-root')?.querySelector('#logList');
+                        const row = logList?.querySelector(`[data-entry-row="${entryId}"]`);
+                        row?.click();
+                        row?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    }, 100);
+                });
+            });
         });
     }
     
@@ -565,6 +585,15 @@ export class ReplayCoordinator {
         }
         return null;
     }
+    
+    findSourceEntryId(replayedEntryId) {
+        for (const [sessionId, session] of this.sessions.entries()) {
+            if (session.resolvedEntryId === replayedEntryId) {
+                return session.sourceEntryId;
+            }
+        }
+        return null;
+    }
 
     showReplayError(entryId, err) {
         const container = this.getReplayContainer(entryId);
@@ -613,11 +642,11 @@ export class ReplayCoordinator {
         `;
     }
 
-    buildReplayAnchor(entryId) {
+    buildReplayAnchor(entryId, labelPrefix = undefined, labelSuffix = undefined) {
         const shortId = trimId(entryId);
         const anchorLabel = shortId.display ?? entryId;
         const anchorTitle = shortId.full ? ` title="${this.escapeForDoubleQuotes(shortId.full)}"` : '';
-        return `<a class="replay-anchor" href="#entry-${entryId}"${anchorTitle}>${anchorLabel}</a>`;
+        return `<a class="replay-anchor" href="#entry-${entryId}"${anchorTitle}>${labelPrefix ?? ''}${anchorLabel}${labelSuffix ?? ''}</a>`;
     }
 
     renderReplayErrorContent(message) {

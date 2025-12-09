@@ -734,6 +734,21 @@ body.theme-light .theme-toggle-handle {
     background: rgba(28, 210, 209, 0.08);
 }
 
+.replay-source-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 0.85rem;
+    margin-left: 0.5rem;
+    opacity: 0.7;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    display: inline-block;
+}
+
+.replay-source-link:hover {
+    opacity: 1;
+    transform: scale(1.15);
+}
+
 .request-method {
     font-weight: 600;
 }

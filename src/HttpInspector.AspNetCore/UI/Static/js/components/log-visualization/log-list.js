@@ -66,10 +66,18 @@ export class LogList {
         const isSelected = this.state.selectedEntryId === pair.id;
         const statusClass = this.statusClass(status);
         const methodClass = method.toLowerCase();
+        
+        // Check if this is a replayed request
+        const sourceEntryId = this.replay?.findSourceEntryId(pair.id);
+        const parentAnchor = this.replay.buildReplayAnchor(sourceEntryId, undefined, '(parent)');
+        const replayLink = sourceEntryId 
+            ? `<span style="margin-left: auto; padding-left: 8px;">${parentAnchor}</span>`
+            : '';
+        
         return `
             <button type="button" class="request-row${isSelected ? ' is-selected' : ''}" data-entry-row="${pair.id}">
                 <span class="request-method method-${methodClass}">${escapeHtml(method)}</span>
-                <span class="request-path" title="${escapeHtml(path)}">${escapeHtml(path)}</span>
+                <span class="request-path" title="${escapeHtml(path)}">${escapeHtml(path)}${replayLink}</span>
                 <span class="request-status status-pill ${statusClass}">${escapeHtml(String(status))}</span>
                 <span class="request-duration">${escapeHtml(duration)}</span>
                 <span class="request-time">${escapeHtml(timeText)}</span>
@@ -190,6 +198,20 @@ export class LogList {
 
     bindListEvents() {
         this.listElement?.addEventListener('click', event => {
+            // Check if clicking on replay source link
+            const replayLink = event.target.closest('.replay-source-link');
+            if (replayLink) {
+                event.preventDefault();
+                event.stopPropagation();
+                const sourceEntryId = replayLink.getAttribute('data-source-entry');
+                if (sourceEntryId) {
+                    this.selectEntry(sourceEntryId);
+                    const sourceRow = this.listElement?.querySelector(`[data-entry-row="${sourceEntryId}"]`);
+                    sourceRow?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }
+                return;
+            }
+            
             const row = event.target.closest('[data-entry-row]');
             if (!row) {
                 return;
