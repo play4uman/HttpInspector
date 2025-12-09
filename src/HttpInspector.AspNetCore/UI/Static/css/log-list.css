@@ -59,3 +59,17 @@
     margin: 1rem 0;
 }
 
+.outgoing-indicator {
+    display: inline-block;
+    background: rgba(139, 92, 246, 0.2);
+    color: #a78bfa;
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    border-radius: 999px;
+    padding: 0.1rem 0.45rem;
+    font-size: 10px;
+    font-weight: 600;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+    line-height: 1;
+}
+

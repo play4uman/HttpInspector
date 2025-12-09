@@ -1,7 +1,8 @@
-﻿import { escapeHtml, encodeBody, formatOutgoingTimestamp, trimId } from '../../utils/format.js';
-import { renderSummaryItem } from '../log-visualization/templates.js';
+﻿import { escapeHtml, encodeBody, formatOutgoingTimestamp, trimId, formatTimestamp, getStatusBucket } from '../../utils/format.js';
+import { renderSummaryItem, renderHeadersList, renderBodyBlock } from '../log-visualization/templates.js';
 import { renderMethodPill, renderStatusPill } from '../common/pills.js';
 import { renderDetailsPanel } from '../common/details.js';
+import { renderRequestHeader, renderResponseHeader, renderIoTabs } from '../log-visualization/log-card.js';
 
 export function renderOutgoingSection(store, parentId) {
     const calls = store.getCallsForParent(parentId);
@@ -11,12 +12,22 @@ export function renderOutgoingSection(store, parentId) {
             markup: '<p class="muted" data-empty-message>This request has no child outgoing requests</p>'
         };
     }
-    const entries = calls.map(call => renderOutgoingCall(call)).join('');
+    
+    // Render list-detail view similar to main log list
+    const listItems = calls.map((call, index) => renderOutgoingListRow(call, index === 0)).join('');
+    const firstCall = calls[0];
+    const detailPanel = renderOutgoingDetail(firstCall);
+    
     return {
         count: calls.length,
         markup: `
-            <div class="outgoing-call-list">
-                ${entries}
+            <div class="outgoing-container">
+                <div class="outgoing-list">
+                    ${listItems}
+                </div>
+                <div class="outgoing-detail" data-outgoing-detail>
+                    ${detailPanel}
+                </div>
             </div>
         `
     };
@@ -56,6 +67,69 @@ function renderOrphanCard(call) {
             </div>
             ${summary}
         </article>
+    `;
+}
+
+function renderOutgoingListRow(call, isSelected = false) {
+    const url = parseOutgoingUrl(call.url);
+    const status = formatOutgoingStatus(call.statusCode);
+    const method = call.method ?? 'HTTP';
+    const methodClass = method.toLowerCase();
+    const duration = call.durationMs != null ? `${call.durationMs.toFixed(1)} ms` : '-';
+    const timestamp = call.timestamp ? new Date(call.timestamp).toLocaleTimeString() : '-';
+    const selectedClass = isSelected ? ' is-selected' : '';
+    
+    return `
+        <button type="button" class="outgoing-row${selectedClass}" data-outgoing-id="${call.id}">
+            <span class="outgoing-method method-${methodClass}">${escapeHtml(method)}</span>
+            <span class="outgoing-url" title="${escapeHtml(url.title)}">${escapeHtml(url.display)}</span>
+            <span class="outgoing-status status-pill status-${status.bucket}">${escapeHtml(status.text)}</span>
+            <span class="outgoing-duration">${escapeHtml(duration)}</span>
+            <span class="outgoing-time">${escapeHtml(timestamp)}</span>
+        </button>
+    `;
+}
+
+export function renderOutgoingDetailView(call) {
+    return renderOutgoingDetail(call);
+}
+
+function renderOutgoingDetail(call) {
+    const url = parseOutgoingUrl(call.url);
+    const status = formatOutgoingStatus(call.statusCode);
+    const method = call.method ?? 'HTTP';
+    const duration = call.durationMs != null ? `${call.durationMs.toFixed(2)} ms` : '-';
+    const timestamp = formatOutgoingTimestamp(call.timestamp);
+    const statusCode = call.statusCode ?? '-';
+    
+    return `
+        <article class="outgoing-detail-card" data-outgoing-entry="${call.id}">
+            <div class="detail-tabs" role="tablist">
+                <button type="button" class="detail-tab is-active" data-outgoing-tab="request">Request</button>
+                <button type="button" class="detail-tab" data-outgoing-tab="response">Response</button>
+            </div>
+            <section class="detail-panel-section is-active" data-outgoing-panel="request">
+                ${renderRequestHeader(method, url.display, statusCode, duration, timestamp)}
+                ${renderIoTabs('outgoing-req', call.requestHeaders, call.requestBody)}
+            </section>
+            <section class="detail-panel-section" data-outgoing-panel="response">
+                ${renderResponseHeader(statusCode, duration)}
+                ${renderIoTabs('outgoing-res', call.responseHeaders, call.responseBody)}
+                ${renderOutgoingException(call)}
+            </section>
+        </article>
+    `;
+}
+
+function renderOutgoingException(call) {
+    if (!call?.exception) {
+        return '';
+    }
+    return `
+        <div class="exception-section">
+            <p class="muted">Exception</p>
+            <pre class="exception-block">${escapeHtml(call.exception)}</pre>
+        </div>
     `;
 }
 

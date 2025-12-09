@@ -800,6 +800,23 @@ body.theme-light .theme-toggle-handle {
     cursor: pointer;
     transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
+
+.tab-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: #041011;
+    border-radius: 999px;
+    padding: 0.1rem 0.5rem;
+    font-size: 10px;
+    font-weight: 600;
+    margin-left: 0.35rem;
+    vertical-align: middle;
+}
+
+.detail-tab.is-active .tab-badge {
+    background: rgba(255, 255, 255, 0.3);
+    color: #041011;
+}
 .detail-tab.is-active,
 .io-tab.is-active {
     background: var(--accent);

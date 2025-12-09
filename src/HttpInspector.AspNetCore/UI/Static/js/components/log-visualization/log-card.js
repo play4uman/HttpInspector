@@ -1,7 +1,8 @@
 import { escapeHtml, formatTimestamp, getStatusBucket } from '../../utils/format.js';
 import { renderHeadersList, renderBodyBlock } from './templates.js';
+import { renderOutgoingSection } from '../outgoing/outgoing-renderer.js';
 
-export function renderLogCard(pair, { replay }) {
+export function renderLogCard(pair, { replay, outgoingStore }) {
     const request = pair.request;
     const response = pair.response;
     const path = `${request?.path ?? ''}${request?.queryString ?? ''}` || '/';
@@ -10,6 +11,11 @@ export function renderLogCard(pair, { replay }) {
     const durationText = formatDuration(response?.durationMs);
     const timestampText = formatTimestamp(request?.timestamp ?? response?.timestamp);
     const responseStatus = response?.statusCode != null ? response.statusCode : '-';
+    
+    // Check for outgoing requests
+    const outgoingData = outgoingStore ? renderOutgoingSection(outgoingStore, pair.id) : { count: 0, markup: '' };
+    const hasOutgoing = outgoingData.count > 0;
+    const outgoingBadge = hasOutgoing ? ` <span class="tab-badge">${outgoingData.count}</span>` : '';
     
     const replayButton = request ? `
         <button type="button" class="detail-tab replay-open-btn" data-replay-toggle="${pair.id}">
@@ -22,6 +28,7 @@ export function renderLogCard(pair, { replay }) {
             <div class="detail-tabs" role="tablist">
                 <button type="button" class="detail-tab is-active" data-detail-tab="request">Request</button>
                 <button type="button" class="detail-tab" data-detail-tab="response">Response</button>
+                <button type="button" class="detail-tab" data-detail-tab="outgoing">Outgoing${outgoingBadge}</button>
                 ${replayButton}
             </div>
             <section class="detail-panel-section is-active" data-tab-panel="request">
@@ -32,11 +39,15 @@ export function renderLogCard(pair, { replay }) {
                 ${renderResponseHeader(responseStatus, durationText)}
                 ${renderIoTabs('res', response?.headers, response?.body)}
             </section>
+            <section class="detail-panel-section" data-tab-panel="outgoing">
+                ${renderOutgoingHeader(hasOutgoing, outgoingData.count)}
+                ${outgoingData.markup}
+            </section>
         </article>
     `;
 }
 
-function renderRequestHeader(method, path, status, duration, timestamp, remoteIp) {
+export function renderRequestHeader(method, path, status, duration, timestamp, remoteIp) {
     return `
         <div class="detail-header">
             <strong>${escapeHtml(method)} ${escapeHtml(path)}</strong>
@@ -50,7 +61,7 @@ function renderRequestHeader(method, path, status, duration, timestamp, remoteIp
     `;
 }
 
-function renderResponseHeader(status, duration) {
+export function renderResponseHeader(status, duration) {
     const bucket = getStatusBucket(typeof status === 'number' ? status : Number(status));
     return `
         <div class="detail-header">
@@ -63,7 +74,7 @@ function renderResponseHeader(status, duration) {
     `;
 }
 
-function renderIoTabs(prefix, headers, body) {
+export function renderIoTabs(prefix, headers, body) {
     const bodyId = `${prefix}-body`;
     const headersMarkup = renderHeadersList(headers);
     const bodyMarkup = renderBodyBlock(bodyId, body);
@@ -86,4 +97,18 @@ function formatDuration(durationMs) {
         return '-';
     }
     return `${durationMs.toFixed(2)} ms`;
+}
+
+function renderOutgoingHeader(hasOutgoing, count) {
+    const summary = hasOutgoing 
+        ? `${count} outgoing ${count === 1 ? 'request' : 'requests'} triggered`
+        : 'No outgoing requests';
+    return `
+        <div class="detail-header">
+            <strong>Outgoing Requests</strong>
+            <div class="meta-row">
+                <span>${escapeHtml(summary)}</span>
+            </div>
+        </div>
+    `;
 }

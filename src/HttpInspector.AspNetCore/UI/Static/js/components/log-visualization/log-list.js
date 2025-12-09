@@ -2,9 +2,10 @@ import { escapeHtml, matchesSearch } from '../../utils/format.js';
 import { renderLogCard } from './log-card.js';
 
 export class LogList {
-    constructor(state, { replay }) {
+    constructor(state, { replay, outgoingStore }) {
         this.state = state;
         this.replay = replay;
+        this.outgoingStore = outgoingStore;
         this.listElement = document.getElementById('logList');
         this.detailElement = document.getElementById('detailPanel');
         this.bindListEvents();
@@ -67,6 +68,12 @@ export class LogList {
         const statusClass = this.statusClass(status);
         const methodClass = method.toLowerCase();
         
+        // Check for outgoing requests
+        const outgoingCalls = this.outgoingStore.getCallsForParent(pair.id);
+        const outgoingBadge = outgoingCalls.length > 0 
+            ? `<span class="outgoing-indicator" title="${outgoingCalls.length} outgoing request${outgoingCalls.length > 1 ? 's' : ''}">${outgoingCalls.length} outgoing request${outgoingCalls.length > 1 ? 's' : ''}</span>`
+            : '';
+        
         // Check if this is a replayed request
         const sourceEntryId = this.replay?.findSourceEntryId(pair.id);
         const parentAnchor = this.replay.buildReplayAnchor(sourceEntryId, undefined, '(parent)');
@@ -77,7 +84,7 @@ export class LogList {
         return `
             <button type="button" class="request-row${isSelected ? ' is-selected' : ''}" data-entry-row="${pair.id}">
                 <span class="request-method method-${methodClass}">${escapeHtml(method)}</span>
-                <span class="request-path" title="${escapeHtml(path)}">${escapeHtml(path)}${replayLink}</span>
+                <span class="request-path" title="${escapeHtml(path)}">${escapeHtml(path)}${replayLink}${outgoingBadge}</span>
                 <span class="request-status status-pill ${statusClass}">${escapeHtml(String(status))}</span>
                 <span class="request-duration">${escapeHtml(duration)}</span>
                 <span class="request-time">${escapeHtml(timeText)}</span>
@@ -89,7 +96,7 @@ export class LogList {
         if (!this.detailElement) {
             return;
         }
-        const markup = renderLogCard(pair, { replay: this.replay });
+        const markup = renderLogCard(pair, { replay: this.replay, outgoingStore: this.outgoingStore });
         this.detailElement.innerHTML = markup;
         this.replay.bindInteractions();
     }
@@ -222,6 +229,20 @@ export class LogList {
 
     bindDetailEvents() {
         this.detailElement?.addEventListener('click', event => {
+            // Handle outgoing request row selection
+            const outgoingRow = event.target.closest('[data-outgoing-id]');
+            if (outgoingRow) {
+                this.selectOutgoingRequest(outgoingRow);
+                return;
+            }
+            
+            // Handle outgoing request tabs
+            const outgoingTab = event.target.closest('[data-outgoing-tab]');
+            if (outgoingTab) {
+                this.activateOutgoingTab(outgoingTab);
+                return;
+            }
+            
             const primaryTab = event.target.closest('[data-detail-tab]');
             if (primaryTab) {
                 this.activatePanel(primaryTab);
@@ -273,6 +294,50 @@ export class LogList {
         } catch {
             // ignore
         }
+    }
+
+    selectOutgoingRequest(row) {
+        const outgoingId = row.getAttribute('data-outgoing-id');
+        if (!outgoingId || !this.state.selectedEntryId) {
+            return;
+        }
+        
+        // Get the outgoing call data
+        const calls = this.outgoingStore.getCallsForParent(this.state.selectedEntryId);
+        const selectedCall = calls.find(call => call.id === outgoingId);
+        if (!selectedCall) {
+            return;
+        }
+        
+        // Highlight the selected row
+        const container = row.closest('.outgoing-list');
+        container?.querySelectorAll('.outgoing-row').forEach(r => {
+            r.classList.toggle('is-selected', r === row);
+        });
+        
+        // Update the detail panel
+        const detailContainer = this.detailElement?.querySelector('[data-outgoing-detail]');
+        if (detailContainer) {
+            // Import the render function dynamically
+            import('../outgoing/outgoing-renderer.js').then(module => {
+                detailContainer.innerHTML = module.renderOutgoingDetailView(selectedCall);
+            });
+        }
+    }
+
+    activateOutgoingTab(button) {
+        const target = button.getAttribute('data-outgoing-tab');
+        const container = button.closest('.outgoing-detail-card');
+        if (!target || !container) {
+            return;
+        }
+        
+        container.querySelectorAll('[data-outgoing-tab]').forEach(tab => {
+            tab.classList.toggle('is-active', tab === button);
+        });
+        container.querySelectorAll('[data-outgoing-panel]').forEach(panel => {
+            panel.classList.toggle('is-active', panel.getAttribute('data-outgoing-panel') === target);
+        });
     }
 
     statusClass(status) {
