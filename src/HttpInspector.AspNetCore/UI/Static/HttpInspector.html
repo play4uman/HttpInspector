@@ -15,7 +15,8 @@
                         <p class="eyebrow">HttpInspector</p>
                         <p class="muted">Live HTTP inspector</p>
                     </div>
-                    <button type="button" class="theme-toggle" id="themeToggle" aria-pressed="true" aria-label="Toggle light mode">
+                    <!-- TODO: one day we might want to spend more time implementing white theme. Until then we disable it because it currently looks unfinished -->
+                    <!-- <button type="button" class="theme-toggle" id="themeToggle" aria-pressed="true" aria-label="Toggle light mode">
                         <span class="theme-toggle-track">
                             <span class="theme-toggle-icon sun" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" role="presentation" focusable="false">
@@ -37,7 +38,7 @@
                             </span>
                             <span class="theme-toggle-handle" aria-hidden="true"></span>
                         </span>
-                    </button>
+                    </button> -->
                 </div>
                 <div class="header-search">
                     <label class="search-field" for="searchInput">
@@ -90,13 +91,16 @@
                                 <div class="time-section" data-owner="from" data-panel="relative">
                                     <p class="section-label">Relative offset</p>
                                     <div class="relative-fields">
-                                        <label>Days
+                                        <label>
+                                            Days
                                             <input type="number" id="fromRelativeDays" min="0" value="0" />
                                         </label>
-                                        <label>Hours
+                                        <label>
+                                            Hours
                                             <input type="number" id="fromRelativeHours" min="0" max="23" value="1" />
                                         </label>
-                                        <label>Minutes
+                                        <label>
+                                            Minutes
                                             <input type="number" id="fromRelativeMinutes" min="0" max="59" value="0" />
                                         </label>
                                     </div>
@@ -140,13 +144,16 @@
                                 <div class="time-section" data-owner="to" data-panel="relative">
                                     <p class="section-label">Relative offset</p>
                                     <div class="relative-fields">
-                                        <label>Days
+                                        <label>
+                                            Days
                                             <input type="number" id="toRelativeDays" min="0" value="0" />
                                         </label>
-                                        <label>Hours
+                                        <label>
+                                            Hours
                                             <input type="number" id="toRelativeHours" min="0" max="23" value="0" />
                                         </label>
-                                        <label>Minutes
+                                        <label>
+                                            Minutes
                                             <input type="number" id="toRelativeMinutes" min="0" max="59" value="0" />
                                         </label>
                                     </div>
@@ -161,6 +168,9 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                    <div class="chip-grid time-quick-group" id="clearTimelineButton">
+                        <button type="button" data-purge="clearScreen">Clear Screen</button>
                     </div>
                 </section>
                 <section class="chip-section">

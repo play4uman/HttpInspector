@@ -47,7 +47,7 @@ export class HttpInspectorApp {
             helpButton: root.getElementById('helpButton'),
             helpModal: root.getElementById('helpModal'),
             helpClose: root.getElementById('closeHelpButton'),
-            quickButtons: root.getElementById('quickTimeButtons')
+            quickButtons: root.getElementById('quickTimeButtons'),
         };
     }
 
@@ -95,7 +95,6 @@ export class HttpInspectorApp {
         this.state.selectedEntryId = null;
         this.outgoingStore.clear();
         this.replay.reset();
-        this.state.lastTimestamp = this.state.queryRange.since;
         this.logList.clearView();
         this.logList.render();
     }
