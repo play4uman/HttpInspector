@@ -47,8 +47,8 @@ export class HttpInspectorApp {
                 topId: 'logList',
                 bottomId: 'detailPanel',
                 handleId: 'splitHandle',
-                minTop: 50,
-                minBottom: 50,
+                minTop: 150,
+                minBottom: 150,
                 persistKey: 'httpinspector.split.logListHeight'
             });
         } catch (error) {
