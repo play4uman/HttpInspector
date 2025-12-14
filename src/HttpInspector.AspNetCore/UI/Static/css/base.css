@@ -984,3 +984,62 @@ body.theme-light .theme-toggle-handle {
             'status duration time';
     }
 }
+
+
+/* --- Vertical splitter between #logList and #detailPanel --- */
+.app-main.vsplit {
+    gap: 0;
+}
+
+#logList {
+    /* JS will set flex-basis (height) */
+    flex: 0 0 420px;
+    min-height: 0;
+}
+
+#detailPanel {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* The draggable handle */
+.split-handle {
+    flex: 0 0 12px;
+    margin: 0.75rem 0;
+    cursor: row-resize;
+    position: relative;
+    z-index: 5;
+    pointer-events: auto;
+    align-self: stretch;
+    background: transparent;
+    user-select: none;
+    touch-action: none;
+    border-radius: 999px;
+}
+
+.split-handle::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 72px;
+    height: 5px;
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    background: rgba(28, 210, 209, 0.35);
+    box-shadow: 0 0 0 1px rgba(28, 210, 209, 0.15), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.split-handle:hover::before {
+    background: rgba(28, 210, 209, 0.55);
+}
+
+.split-handle:focus-visible {
+    outline: 2px solid rgba(28, 210, 209, 0.55);
+    outline-offset: 4px;
+}
+
+body.is-resizing {
+    cursor: row-resize !important;
+    user-select: none !important;
+}

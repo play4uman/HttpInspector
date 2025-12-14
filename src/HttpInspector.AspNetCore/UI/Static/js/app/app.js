@@ -6,6 +6,7 @@ import { FilterBar } from '../components/filter-bar/filter-bar.js';
 import { LogList } from '../components/log-visualization/log-list.js';
 import { OutgoingStore } from '../components/outgoing/outgoing-store.js';
 import { ReplayCoordinator } from '../components/replay/replay-coordinator.js';
+import { VerticalSplitter } from '../components/ui/vertical-splitter.js';
 
 const THEME_STORAGE_KEY = 'httpInspector:theme';
 
@@ -33,9 +34,27 @@ export class HttpInspectorApp {
             onBatchComplete: () => this.logList.render()
         });
         this.shellControls = this.captureShellControls(documentRoot);
+        this.splitter = this.initializeSplitter();
         this.bootstrapTheme();
         this.bindShellControls();
         this.handleKeyDown = event => this.handleGlobalKeyDown(event);
+    }
+
+    initializeSplitter() {
+        try {
+            return new VerticalSplitter({
+                containerId: 'mainSplit',
+                topId: 'logList',
+                bottomId: 'detailPanel',
+                handleId: 'splitHandle',
+                minTop: 50,
+                minBottom: 50,
+                persistKey: 'httpinspector.split.logListHeight'
+            });
+        } catch (error) {
+            console.warn('VerticalSplitter initialization failed:', error);
+            return null;
+        }
     }
 
     captureShellControls(root) {
