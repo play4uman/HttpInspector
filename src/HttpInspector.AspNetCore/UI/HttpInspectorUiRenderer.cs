@@ -22,7 +22,12 @@ internal sealed class HttpInspectorUiRenderer
     public IResult Render()
     {
         var basePath = HttpInspectorRouteHelper.NormalizeBasePath(_options.Value.BasePath);
-        var populated = _template.Value.Replace("__HTTP_INSPECTOR_BASE__", basePath, StringComparison.Ordinal);
+        var allowReplay = _options.Value.AllowReplay ? "true" : "false";
+        
+        var populated = _template.Value
+            .Replace("__HTTP_INSPECTOR_BASE__", basePath, StringComparison.Ordinal)
+            .Replace("__ALLOW_REPLAY__", allowReplay, StringComparison.Ordinal);
+        
         return Results.Content(populated, "text/html; charset=utf-8");
     }
 

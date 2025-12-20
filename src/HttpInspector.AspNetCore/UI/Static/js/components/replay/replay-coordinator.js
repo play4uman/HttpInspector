@@ -15,6 +15,7 @@ export class ReplayCoordinator {
         this.newRequestModalContent = null;
         this.closeNewRequestModalBtn = null;
         this.newRequestButton = null;
+        this.allowReplay = window.HttpInspectorConfig?.allowReplay ?? true;
     }
 
     attach(listElement, entries) {
@@ -27,6 +28,12 @@ export class ReplayCoordinator {
         this.newRequestModalContent = document.getElementById('newRequestModalContent');
         this.closeNewRequestModalBtn = document.getElementById('closeNewRequestModal');
         this.newRequestButton = document.getElementById('newRequestButton');
+        
+        // Hide new request button if replay is disabled
+        if (this.newRequestButton && !this.allowReplay) {
+            this.newRequestButton.style.display = 'none';
+        }
+        
         this.setupModalHandlers();
     }
 
@@ -617,6 +624,14 @@ export class ReplayCoordinator {
                     return;
                 }
                 button.dataset.replayToggleWired = 'true';
+                
+                // Disable button if replay is not allowed
+                if (!this.allowReplay) {
+                    button.disabled = true;
+                    button.title = 'Replay is disabled in this environment';
+                    return;
+                }
+                
                 button.addEventListener('click', () => {
                     const entryId = button.getAttribute('data-replay-toggle');
                     this.handleReplayToggle(entryId, button);
@@ -879,6 +894,9 @@ export class ReplayCoordinator {
     }
 
     handleReplayToggle(entryId, button) {
+        if (!this.allowReplay) {
+            return;
+        }
         if (!entryId) {
             return;
         }
@@ -905,6 +923,9 @@ export class ReplayCoordinator {
     }
 
     async handleReplaySend(entryId, button) {
+        if (!this.allowReplay) {
+            return;
+        }
         if (!entryId || !button || button.disabled) {
             return;
         }

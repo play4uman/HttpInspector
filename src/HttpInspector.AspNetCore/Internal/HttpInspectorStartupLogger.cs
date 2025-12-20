@@ -26,9 +26,8 @@ internal sealed class HttpInspectorStartupLogger : IHostedService
         if (!_options.Enabled)
         {
             _logger.LogInformation(
-                "HttpInspector is DISABLED (Environment: {Environment}, AllowProduction: {AllowProduction})",
-                _environment.EnvironmentName,
-                _options.AllowProduction);
+                "HttpInspector is DISABLED (Environment: {Environment})",
+                _environment.EnvironmentName);
             return Task.CompletedTask;
         }
 

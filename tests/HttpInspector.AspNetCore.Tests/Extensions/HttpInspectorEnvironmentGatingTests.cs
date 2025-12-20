@@ -7,10 +7,10 @@ using Xunit;
 
 namespace HttpInspector.AspNetCore.Tests.Extensions;
 
-public class HttpInspectorEnvironmentGatingTests
+public class HttpInspectorBuilderTests
 {
     [Fact]
-    public void PostConfigure_DevelopmentEnvironment_KeepsDefaultSettings()
+    public void AddHttpInspector_NoPresets_UsesDefaultValues()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -20,7 +20,7 @@ public class HttpInspectorEnvironmentGatingTests
         var serviceProvider = services.BuildServiceProvider();
         var options = serviceProvider.GetRequiredService<IOptions<HttpInspectorOptions>>().Value;
 
-        // Assert
+        // Assert - Default values from HttpInspectorOptions
         Assert.True(options.Enabled);
         Assert.False(options.RequireAuthentication);
         Assert.True(options.AllowBodyCapture);
@@ -28,135 +28,114 @@ public class HttpInspectorEnvironmentGatingTests
     }
 
     [Fact]
-    public void PostConfigure_ProductionEnvironment_DisablesInspectorByDefault()
+    public void UseDevelopmentDefaults_AppliesDevelopmentPreset()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IHostEnvironment>(new TestHostEnvironment { EnvironmentName = Environments.Production });
-        services.AddHttpInspector();
+        services.AddHttpInspector().UseDevelopmentDefaults();
 
         var serviceProvider = services.BuildServiceProvider();
         var options = serviceProvider.GetRequiredService<IOptions<HttpInspectorOptions>>().Value;
 
         // Assert
-        Assert.False(options.Enabled);
+        Assert.True(options.AllowBodyCapture);
+        Assert.True(options.AllowReplay);
+        Assert.False(options.RequireAuthentication);
     }
 
     [Fact]
-    public void PostConfigure_ProductionEnvironment_AllowProduction_EnablesInspector()
+    public void UseProductionDefaults_AppliesProductionPreset()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IHostEnvironment>(new TestHostEnvironment { EnvironmentName = Environments.Production });
-        services.AddHttpInspector(options =>
-        {
-            options.AllowProduction = true;
-        });
-
-        var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetRequiredService<IOptions<HttpInspectorOptions>>().Value;
-
-        // Assert
-        Assert.True(options.Enabled);
-    }
-
-    [Fact]
-    public void PostConfigure_StagingEnvironment_RequiresAuthentication()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddSingleton<IHostEnvironment>(new TestHostEnvironment { EnvironmentName = Environments.Staging });
-        services.AddHttpInspector();
-
-        var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetRequiredService<IOptions<HttpInspectorOptions>>().Value;
-
-        // Assert
-        Assert.True(options.RequireAuthentication);
-    }
-
-    [Fact]
-    public void PostConfigure_StagingEnvironment_DisablesBodyCapture()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddSingleton<IHostEnvironment>(new TestHostEnvironment { EnvironmentName = Environments.Staging });
-        services.AddHttpInspector();
+        services.AddHttpInspector().UseProductionDefaults();
 
         var serviceProvider = services.BuildServiceProvider();
         var options = serviceProvider.GetRequiredService<IOptions<HttpInspectorOptions>>().Value;
 
         // Assert
         Assert.False(options.AllowBodyCapture);
-    }
-
-    [Fact]
-    public void PostConfigure_StagingEnvironment_DisablesReplay()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddSingleton<IHostEnvironment>(new TestHostEnvironment { EnvironmentName = Environments.Staging });
-        services.AddHttpInspector();
-
-        var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetRequiredService<IOptions<HttpInspectorOptions>>().Value;
-
-        // Assert
         Assert.False(options.AllowReplay);
-    }
-
-    [Fact]
-    public void PostConfigure_ProductionWithAllowProduction_RequiresAuthentication()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.AddSingleton<IHostEnvironment>(new TestHostEnvironment { EnvironmentName = Environments.Production });
-        services.AddHttpInspector(options =>
-        {
-            options.AllowProduction = true;
-        });
-
-        var serviceProvider = services.BuildServiceProvider();
-        var options = serviceProvider.GetRequiredService<IOptions<HttpInspectorOptions>>().Value;
-
-        // Assert
         Assert.True(options.RequireAuthentication);
     }
 
     [Fact]
-    public void PostConfigure_ProductionWithAllowProduction_DisablesBodyCapture()
+    public void UseStagingDefaults_AppliesStagingPreset()
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddSingleton<IHostEnvironment>(new TestHostEnvironment { EnvironmentName = Environments.Production });
-        services.AddHttpInspector(options =>
-        {
-            options.AllowProduction = true;
-        });
+        services.AddSingleton<IHostEnvironment>(new TestHostEnvironment { EnvironmentName = Environments.Staging });
+        services.AddHttpInspector().UseStagingDefaults();
 
         var serviceProvider = services.BuildServiceProvider();
         var options = serviceProvider.GetRequiredService<IOptions<HttpInspectorOptions>>().Value;
 
         // Assert
-        Assert.False(options.AllowBodyCapture);
+        Assert.True(options.AllowBodyCapture); // Staging allows body capture for debugging
+        Assert.False(options.AllowReplay); // But disables replay for safety
+        Assert.True(options.RequireAuthentication);
     }
 
     [Fact]
-    public void PostConfigure_ProductionWithAllowProduction_DisablesReplay()
+    public void Configure_OverridesPresetDefaults()
     {
         // Arrange
         var services = new ServiceCollection();
         services.AddSingleton<IHostEnvironment>(new TestHostEnvironment { EnvironmentName = Environments.Production });
-        services.AddHttpInspector(options =>
-        {
-            options.AllowProduction = true;
-        });
+        services.AddHttpInspector()
+            .UseProductionDefaults()
+            .Configure(options =>
+            {
+                options.AllowReplay = true; // Override production default
+            });
 
         var serviceProvider = services.BuildServiceProvider();
         var options = serviceProvider.GetRequiredService<IOptions<HttpInspectorOptions>>().Value;
 
         // Assert
+        Assert.False(options.AllowBodyCapture); // Still production default
+        Assert.True(options.RequireAuthentication); // Still production default
+        Assert.True(options.AllowReplay); // Overridden
+    }
+
+    [Fact]
+    public void Configure_BeforePreset_IsOverriddenByPreset()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton<IHostEnvironment>(new TestHostEnvironment { EnvironmentName = Environments.Production });
+        services.AddHttpInspector(options =>
+            {
+                options.AllowReplay = true;
+            })
+            .UseProductionDefaults(); // This runs after, so it wins
+
+        var serviceProvider = services.BuildServiceProvider();
+        var options = serviceProvider.GetRequiredService<IOptions<HttpInspectorOptions>>().Value;
+
+        // Assert
+        Assert.False(options.AllowReplay); // Production preset wins
+    }
+
+    [Fact]
+    public void MultiplePresets_LastOneWins()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton<IHostEnvironment>(new TestHostEnvironment { EnvironmentName = Environments.Production });
+        services.AddHttpInspector()
+            .UseDevelopmentDefaults()
+            .UseProductionDefaults(); // Last one applied
+
+        var serviceProvider = services.BuildServiceProvider();
+        var options = serviceProvider.GetRequiredService<IOptions<HttpInspectorOptions>>().Value;
+
+        // Assert - Production preset should be active
+        Assert.False(options.AllowBodyCapture);
         Assert.False(options.AllowReplay);
+        Assert.True(options.RequireAuthentication);
     }
 
     private class TestHostEnvironment : IHostEnvironment

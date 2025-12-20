@@ -59,6 +59,8 @@ builder.Services.AddHttpInspector(options =>
 
     options.Outgoing.IncludeUrlQuery = true;
     options.Outgoing.MaxBodyLength = 4_096;
+
+    options.AllowReplay = false;
 });
 
 builder.Services.AddHttpClient("demo-api").ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler

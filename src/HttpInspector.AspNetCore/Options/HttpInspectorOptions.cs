@@ -3,17 +3,12 @@ namespace HttpInspector.AspNetCore.Options;
 public class HttpInspectorOptions
 {
     /// <summary>
-    /// Controls whether HttpInspector is enabled. Default is true, but will be gated by environment in service registration.
+    /// Controls whether HttpInspector is enabled. Default is true.
     /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Allows HttpInspector to run in Production environment. Default is false for safety.
-    /// </summary>
-    public bool AllowProduction { get; set; } = false;
-
-    /// <summary>
-    /// Controls whether request/response bodies are captured. Default depends on environment (false in Production).
+    /// Controls whether request/response bodies are captured. Default is true.
     /// </summary>
     public bool AllowBodyCapture { get; set; } = true;
 
@@ -27,7 +22,7 @@ public class HttpInspectorOptions
 
     /// <summary>
     /// Requires authentication to access the HttpInspector UI and API. 
-    /// Default is false in Development, true otherwise.
+    /// Default is false.
     /// </summary>
     public bool RequireAuthentication { get; set; } = false;
 
@@ -44,7 +39,7 @@ public class HttpInspectorOptions
     public string[]? AllowedNetworks { get; set; }
 
     /// <summary>
-    /// Controls whether request replay is allowed. Default depends on environment (false in Production).
+    /// Controls whether request replay is allowed. Default is true.
     /// </summary>
     public bool AllowReplay { get; set; } = true;
 
@@ -56,6 +51,8 @@ public class HttpInspectorOptions
 
     public string[]? RedactedHeaders { get; set; }
         = new[] { "Authorization", "Cookie" };
+
+    public RedactionOptions Redaction { get; } = new();
 
     public OutgoingTrackingOptions Outgoing { get; } = new();
 }

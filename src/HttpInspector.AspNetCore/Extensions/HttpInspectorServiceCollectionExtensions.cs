@@ -15,16 +15,19 @@ namespace HttpInspector.AspNetCore.Extensions;
 
 public static class HttpInspectorServiceCollectionExtensions
 {
-    public static IServiceCollection AddHttpInspector(this IServiceCollection services, Action<HttpInspectorOptions>? configure = null)
+    public static HttpInspectorBuilder AddHttpInspector(this IServiceCollection services, Action<HttpInspectorOptions>? configure = null)
     {
         services.AddHttpContextAccessor();
         services.AddOptions<HttpInspectorOptions>();
+        
         if (configure is not null)
         {
             services.Configure(configure);
         }
 
-        // Register post-configuration that applies environment-based security defaults
+        var builder = new HttpInspectorBuilder(services);
+
+        // Register post-configuration for validation/defaults only
         services.AddSingleton<IPostConfigureOptions<HttpInspectorOptions>, HttpInspectorOptionsPostConfigure>();
 
         services.AddOptions<FileHttpInspectorStoreOptions>()
@@ -66,6 +69,11 @@ public static class HttpInspectorServiceCollectionExtensions
         services.TryAddSingleton<HttpInspectorPathFilter>();
         services.TryAddSingleton<HttpInspectorUiRenderer>();
         services.TryAddSingleton<HttpInspectorAssetProvider>();
+        services.TryAddSingleton<RedactionService>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptionsMonitor<HttpInspectorOptions>>();
+            return new RedactionService(options.CurrentValue.Redaction);
+        });
         services.TryAddTransient<HttpInspectorOutgoingHandler>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHttpMessageHandlerBuilderFilter, HttpInspectorOutgoingHandlerBuilderFilter>());
 
@@ -76,7 +84,7 @@ public static class HttpInspectorServiceCollectionExtensions
         // Startup audit logging
         services.AddHostedService<HttpInspectorStartupLogger>();
 
-        return services;
+        return builder;
     }
 }
 

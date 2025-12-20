@@ -23,19 +23,22 @@ public sealed class HttpInspectorMiddleware
     private readonly IHttpInspectorLogWriter _logWriter;
     private readonly IOptionsMonitor<HttpInspectorOptions> _options;
     private readonly HttpInspectorPathFilter _pathFilter;
+    private readonly RedactionService _redactionService;
 
     public HttpInspectorMiddleware(
         RequestDelegate next,
         ILogger<HttpInspectorMiddleware> logger,
         IHttpInspectorLogWriter logWriter,
         IOptionsMonitor<HttpInspectorOptions> options,
-        HttpInspectorPathFilter pathFilter)
+        HttpInspectorPathFilter pathFilter,
+        RedactionService redactionService)
     {
         _next = next;
         _logger = logger;
         _logWriter = logWriter;
         _options = options;
         _pathFilter = pathFilter;
+        _redactionService = redactionService;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -105,13 +108,47 @@ public sealed class HttpInspectorMiddleware
     {
         var request = context.Request;
         string? body = null;
+        long? bodyCapturedBytes = null;
+        long? bodyOriginalBytes = null;
+        bool? isTruncated = null;
+        bool? isRedacted = null;
+
         if (options.LogBodies && options.AllowBodyCapture)
         {
-            request.EnableBuffering();
-            body = await ReadStreamAsync(request.Body, options.MaxBodyLength, context.RequestAborted).ConfigureAwait(false);
+            var contentType = request.ContentType;
+            if (_redactionService.ShouldCaptureBody(contentType))
+            {
+                request.EnableBuffering();
+                var result = await ReadStreamWithMetadataAsync(request.Body, options.MaxBodyLength, context.RequestAborted).ConfigureAwait(false);
+                body = result.Content;
+                bodyCapturedBytes = result.CapturedBytes;
+                bodyOriginalBytes = result.OriginalBytes;
+                isTruncated = result.IsTruncated;
+
+                if (body != null)
+                {
+                    if (contentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        body = _redactionService.RedactJsonBody(body);
+                        isRedacted = true;
+                    }
+                    else if (contentType?.Contains("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        body = _redactionService.RedactFormBody(body);
+                        isRedacted = true;
+                    }
+                }
+            }
         }
 
-        var headers = SnapshotHeaders(request.Headers, options);
+        var headers = SnapshotHeaders(request.Headers);
+        var queryString = request.QueryString.HasValue ? request.QueryString.Value : null;
+        if (!options.Redaction.StoreRawUrl && !string.IsNullOrEmpty(queryString))
+        {
+            queryString = _redactionService.RedactQueryString(queryString);
+            isRedacted = true;
+        }
+
         var entry = new HttpInspectorLogEntry
         {
             Id = correlationId,
@@ -119,12 +156,16 @@ public sealed class HttpInspectorMiddleware
             Timestamp = DateTimeOffset.UtcNow,
             Method = request.Method,
             Path = request.Path.HasValue ? request.Path.Value : null,
-            QueryString = request.QueryString.HasValue ? request.QueryString.Value : null,
+            QueryString = queryString,
             RemoteIp = context.Connection.RemoteIpAddress?.ToString(),
             StatusCode = null,
             Headers = headers,
             Body = body,
-            DurationMs = null
+            DurationMs = null,
+            BodyCapturedBytes = bodyCapturedBytes,
+            BodyOriginalBytes = bodyOriginalBytes,
+            IsTruncated = isTruncated,
+            IsRedacted = isRedacted
         };
 
         LogStructured(entry, "HttpInspector captured request {Method} {Path}", entry.Method, entry.Path);
@@ -134,12 +175,38 @@ public sealed class HttpInspectorMiddleware
     private async Task<HttpInspectorLogEntry> CaptureResponseAsync(HttpContext context, Stream responseBody, string correlationId, TimeSpan elapsed, HttpInspectorOptions options)
     {
         string? body = null;
+        long? bodyCapturedBytes = null;
+        long? bodyOriginalBytes = null;
+        bool? isTruncated = null;
+        bool? isRedacted = null;
+
         if (options.LogBodies && options.AllowBodyCapture)
         {
-            body = await ReadStreamAsync(responseBody, options.MaxBodyLength, context.RequestAborted).ConfigureAwait(false);
+            var contentType = context.Response.ContentType;
+            if (_redactionService.ShouldCaptureBody(contentType))
+            {
+                var result = await ReadStreamWithMetadataAsync(responseBody, options.MaxBodyLength, context.RequestAborted).ConfigureAwait(false);
+                body = result.Content;
+                bodyCapturedBytes = result.CapturedBytes;
+                bodyOriginalBytes = result.OriginalBytes;
+                isTruncated = result.IsTruncated;
+
+                if (body != null && contentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    body = _redactionService.RedactJsonBody(body);
+                    isRedacted = true;
+                }
+            }
         }
 
-        var headers = SnapshotHeaders(context.Response.Headers, options);
+        var headers = SnapshotHeaders(context.Response.Headers);
+        var queryString = context.Request.QueryString.HasValue ? context.Request.QueryString.Value : null;
+        if (!options.Redaction.StoreRawUrl && !string.IsNullOrEmpty(queryString))
+        {
+            queryString = _redactionService.RedactQueryString(queryString);
+            isRedacted = true;
+        }
+
         var entry = new HttpInspectorLogEntry
         {
             Id = correlationId,
@@ -147,12 +214,16 @@ public sealed class HttpInspectorMiddleware
             Timestamp = DateTimeOffset.UtcNow,
             Method = context.Request.Method,
             Path = context.Request.Path.HasValue ? context.Request.Path.Value : null,
-            QueryString = context.Request.QueryString.HasValue ? context.Request.QueryString.Value : null,
+            QueryString = queryString,
             RemoteIp = context.Connection.RemoteIpAddress?.ToString(),
             StatusCode = context.Response.StatusCode,
             Headers = headers,
             Body = body,
-            DurationMs = Math.Round(elapsed.TotalMilliseconds, 2, MidpointRounding.AwayFromZero)
+            DurationMs = Math.Round(elapsed.TotalMilliseconds, 2, MidpointRounding.AwayFromZero),
+            BodyCapturedBytes = bodyCapturedBytes,
+            BodyOriginalBytes = bodyOriginalBytes,
+            IsTruncated = isTruncated,
+            IsRedacted = isRedacted
         };
 
         LogStructured(entry, "HttpInspector captured response {StatusCode} {Path}", entry.StatusCode, entry.Path);
@@ -171,19 +242,16 @@ public sealed class HttpInspectorMiddleware
         }
     }
 
-    private static IReadOnlyDictionary<string, string> SnapshotHeaders(IHeaderDictionary headers, HttpInspectorOptions options)
+    private IReadOnlyDictionary<string, string> SnapshotHeaders(IHeaderDictionary headers)
     {
         var snapshot = new Dictionary<string, string>(headers.Count, StringComparer.OrdinalIgnoreCase);
-        var redacted = options.RedactedHeaders is { Length: > 0 }
-            ? new HashSet<string>(options.RedactedHeaders, StringComparer.OrdinalIgnoreCase)
-            : null;
 
         foreach (var header in headers)
         {
             var value = header.Value.ToString();
-            if (redacted is not null && redacted.Contains(header.Key))
+            if (_redactionService.ShouldRedactHeader(header.Key))
             {
-                value = "<redacted>";
+                value = "***REDACTED***";
             }
 
             snapshot[header.Key] = value;
@@ -192,52 +260,48 @@ public sealed class HttpInspectorMiddleware
         return snapshot;
     }
 
-    private static async Task<string?> ReadStreamAsync(Stream stream, int maxLength, CancellationToken cancellationToken)
+    private record StreamReadResult(string? Content, long CapturedBytes, long OriginalBytes, bool IsTruncated);
+
+    private static async Task<StreamReadResult> ReadStreamWithMetadataAsync(Stream stream, int maxLength, CancellationToken cancellationToken)
     {
         if (!stream.CanRead)
         {
-            return null;
+            return new StreamReadResult(null, 0, 0, false);
         }
 
-        stream.Seek(0, SeekOrigin.Begin);
-        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
-        var minimumLength = Math.Max(maxLength, 1);
-        var rentedLength = Math.Min(minimumLength, 4096);
-        var buffer = ArrayPool<char>.Shared.Rent(rentedLength);
+        var originalPosition = stream.CanSeek ? stream.Position : 0;
+        var buffer = ArrayPool<byte>.Shared.Rent(maxLength);
+        
         try
         {
-            var builder = new StringBuilder();
-            while (builder.Length < maxLength)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var charsToRead = Math.Min(buffer.Length, maxLength - builder.Length);
-                var read = await reader.ReadAsync(buffer.AsMemory(0, charsToRead)).ConfigureAwait(false);
-                if (read == 0)
-                {
-                    break;
-                }
+            var totalRead = 0;
+            var bytesRead = 0;
 
-                builder.Append(buffer, 0, read);
+            while (totalRead < maxLength && 
+                   (bytesRead = await stream.ReadAsync(buffer.AsMemory(totalRead, maxLength - totalRead), cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                totalRead += bytesRead;
             }
 
-            if (builder.Length == 0)
+            var isTruncated = bytesRead > 0 || (stream.CanSeek && stream.Position < stream.Length);
+            var originalLength = stream.CanSeek ? stream.Length : totalRead;
+
+            if (stream.CanSeek)
             {
-                return null;
+                stream.Position = originalPosition;
             }
 
-            var truncated = builder.Length >= maxLength;
-            var result = builder.ToString();
-            if (truncated)
+            if (totalRead == 0)
             {
-                result += " �(truncated)";
+                return new StreamReadResult(null, 0, originalLength, false);
             }
 
-            return result;
+            var content = Encoding.UTF8.GetString(buffer, 0, totalRead);
+            return new StreamReadResult(content, totalRead, originalLength, isTruncated);
         }
         finally
         {
-            ArrayPool<char>.Shared.Return(buffer);
-            stream.Seek(0, SeekOrigin.Begin);
+            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 

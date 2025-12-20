@@ -60,4 +60,16 @@ public sealed record HttpInspectorLogEntry
 
     [JsonPropertyName("durationMs")]
     public double? DurationMs { get; init; }
+
+    [JsonPropertyName("bodyCapturedBytes")]
+    public long? BodyCapturedBytes { get; init; }
+
+    [JsonPropertyName("bodyOriginalBytes")]
+    public long? BodyOriginalBytes { get; init; }
+
+    [JsonPropertyName("isTruncated")]
+    public bool? IsTruncated { get; init; }
+
+    [JsonPropertyName("isRedacted")]
+    public bool? IsRedacted { get; init; }
 }

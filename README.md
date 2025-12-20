@@ -68,18 +68,17 @@ dotnet add package HttpInspector.AspNetCore
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-#if DEBUG
-builder.Services.AddHttpInspector();
-#endif
+builder.Services.AddHttpInspector()
+    .UseDevelopmentDefaults();  // Optional: choose your security preset
 
 var app = builder.Build();
 
-#if DEBUG
 app.UseHttpInspector();
-#endif
 
 app.Run();
 ```
+
+> **💡 Tip:** Use `.UseDevelopmentDefaults()`, `.UseProductionDefaults()`, or `.UseStagingDefaults()` to quickly apply environment-appropriate security settings. See [Security Configuration](#-security-configuration) for details.
 
 3. Open the dashboard:
 ```
@@ -90,156 +89,9 @@ http://localhost:<port>/http-inspector
 
 ---
 
-# 🔒 Security & Safe Defaults
+# ✨ Features
 
-## Environment-Based Configuration
-
-HttpInspector applies **safe-by-default** security settings based on your environment:
-
-### Development Environment
-- ✅ Enabled by default
-- ✅ Body capture allowed
-- ✅ Replay allowed
-- ❌ Authentication **not** required
-
-### Staging/Production Environments
-- ❌ **Disabled in Production** unless explicitly allowed via `AllowProduction = true`
-- ✅ Authentication **required** by default
-- ❌ Body capture **disabled** by default
-- ❌ Replay **disabled** by default
-
-## Production Usage (Advanced)
-
-To use HttpInspector in Production, you **must** explicitly enable it and configure security:
-
-```csharp
-builder.Services.AddHttpInspector(options =>
-{
-    // REQUIRED: Explicitly allow production usage
-    options.AllowProduction = true;
-    
-    // REQUIRED: Configure authentication
-    options.RequireAuthentication = true;
-    options.AuthorizationPolicy = "AdminOnly"; // Optional: use a specific policy
-    
-    // Optional: Restrict to specific IP ranges (CIDR notation)
-    options.AllowedNetworks = new[] 
-    { 
-        "10.0.0.0/8",           // Internal network
-        "192.168.1.0/24"        // VPN range
-    };
-    
-    // Recommended: Keep body capture disabled in production
-    options.AllowBodyCapture = false;
-    
-    // Recommended: Keep replay disabled in production
-    options.AllowReplay = false;
-});
-```
-
-## Authentication Options
-
-### Basic Authentication Requirement
-
-```csharp
-options.RequireAuthentication = true; // Applies default authentication
-```
-
-### Custom Authorization Policy
-
-```csharp
-// 1. Define your policy
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("AdminOnly", policy =>
-        policy.RequireRole("Admin"));
-});
-
-// 2. Apply to HttpInspector
-builder.Services.AddHttpInspector(options =>
-{
-    options.RequireAuthentication = true;
-    options.AuthorizationPolicy = "AdminOnly";
-});
-```
-
-### Network Restrictions
-
-Restrict access to specific IP ranges using CIDR notation:
-
-```csharp
-options.AllowedNetworks = new[]
-{
-    "192.168.1.0/24",    // Local network
-    "10.0.0.0/8",        // Private network
-    "172.16.0.0/12",     // Another private range
-    "127.0.0.1"          // Localhost only
-};
-```
-
-## Audit Logging
-
-HttpInspector automatically logs security-relevant events:
-
-### Startup Audit Log
-At application startup, HttpInspector logs its configuration:
-- Environment name
-- Enabled/disabled status
-- Authentication requirements
-- Authorization policy
-- Body capture status
-- Replay status
-- Redaction rules count
-- Network restrictions status
-
-Example log output:
-```
-[Warning] HttpInspector is ENABLED | Environment: Production | BasePath: /http-inspector | 
-Auth: True | Policy: AdminOnly | BodyCapture: False | Replay: False | 
-Redaction: 4 rules | NetworkRestriction: enabled
-```
-
-## Recommended "safe" configuration
-
-Below is a template that is safer than “just enable it”. Adapt as needed.
-
-```csharp
-#if DEBUG
-app.UseHttpInspector(options =>
-{
-    options.AllowProduction = false;
-    // UI access
-    options.RequireAuthentication = true; // strongly recommended outside local dev
-
-    // Capture settings
-    options.EnableOutgoingHttpTracking = true;
-    options.LogRequestBody = true;
-    options.LogResponseBody = true;
-
-    // Limits
-    options.MaxBodySizeBytes = 64_000;          // protect memory & disk
-    options.MaxEventAge = TimeSpan.FromHours(6); // retention cap
-    options.MaxEvents = 10_000;                 // retention cap
-
-    // Redaction (minimum set)
-    options.RedactHeaders.Add("Authorization");
-    options.RedactHeaders.Add("Cookie");
-    options.RedactHeaders.Add("Set-Cookie");
-
-    // Route inclusion/exclusion examples (optional)
-    // options.ExcludePathPrefixes.Add("/health");
-    // options.ExcludePathPrefixes.Add("/metrics");
-});
-#endif
-```
-
-> **Do not** run with body logging + no auth on a publicly reachable environment.
-
----
-
-# ✨ Feature Outline
-
-## 🎛 Real-time visual dashboard
+## 🕵️ Real-time HTTP Inspection
 
 Access `/http-inspector` to see:
 
@@ -253,88 +105,59 @@ Access `/http-inspector` to see:
 
 ![Time Ranges](https://github.com/play4uman/HttpInspector/blob/master/docs/images/time_range.png?raw=true)
 
-
 ---
 
-## 🔗 Outgoing HTTP request tracking
+## 🔗 Outgoing HTTP Tracking
 
-Automatically captures all `HttpClient` calls triggered during request processing.
+Automatically capture all `HttpClient` calls triggered during request processing:
 
 - Child → parent correlation  
 - URL, method, headers, body  
 - Response status and duration  
 - End-to-end request chain visibility  
 
-### How to opt-in
-
-Enable outgoing HTTP request tracking in your configuration:
-
-```csharp
-builder.Services.AddHttpInspector(options =>
-{
-    options.EnableOutgoingTracking = true;
-    
-    // Optional: configure outgoing tracking behavior
-    options.Outgoing.IncludeUrlQuery = true;
-    options.Outgoing.MaxBodyLength = 4_096;
-});
-```
-
-Then simply inject `IHttpClientFactory` in your endpoints or controllers:
-
-```csharp
-app.MapGet("/api/external", async (IHttpClientFactory factory) =>
-{
-    var client = factory.CreateClient("demo-api");
-    var response = await client.GetAsync("https://api.example.com/data");
-    var payload = await response.Content.ReadAsStringAsync();
-    return Results.Text(payload, "application/json");
-});
-```
-
-That's it! All HTTP calls made through `IHttpClientFactory` will be automatically tracked and correlated with their parent requests.
+Enable with: `options.EnableOutgoingTracking = true;`
 
 ![Outgoing Requests](https://github.com/play4uman/HttpInspector/blob/master/docs/images/outgoing_request_tracking.png?raw=true)
 
+[See full configuration →](#outgoing-http-request-tracking)
+
 ---
 
-## 🔁 Request replay & editing built-in
+## 🔁 Request Replay & Editing
 
-Replay any captured request — or fully **edit it before sending**.
+Replay any captured request — or fully **edit it before sending**:
 
-Edit anything:
-- URL and query parameters  
-- HTTP method  
-- Headers (add/remove/change)  
-- Body (JSON, XML, form-data, raw text)
-
-Features:
+- Edit URL, query parameters, method, headers, and body
 - Instant replay via internal loopback  
 - Rich request editor with live preview  
-- Copy as:
-  - `curl`
-  - PowerShell
-  - Raw HTTP
-- Replay results shown directly inside the UI  
+- Copy as `curl`, PowerShell, or raw HTTP
+- Replay results shown directly in the UI  
 
 ![Replay Feature](https://github.com/play4uman/HttpInspector/blob/master/docs/images/replay_request.png?raw=true)
 
+[See security considerations →](#-security-configuration)
 
 ---
 
-## 🔒 Safe and configurable
+## 🔒 Security & Data Protection
 
-- Redact sensitive headers  
-- Truncate large request/response bodies  
-- Include/exclude specific paths  
-- Optional authentication for the dashboard  
-- Configurable retention and file rotation
-  
+Built-in security features with zero configuration required:
+
+- **Automatic redaction** of sensitive headers (`Authorization`, `Cookie`, `X-Api-Key`)
+- **Query parameter redaction** (`token`, `password`, `api_key`)
+- **Binary content skipping** (images, videos, PDFs)
+- **Environment presets** for development, staging, and production
+- **IP-based access control** with CIDR notation support
+- **ASP.NET Core authorization** integration
+
+[Full security configuration →](#-security-configuration)
+
 ---
 
-## 📦 Extensible storage
+## 📦 Pluggable Storage
 
-The storage layer is fully pluggable via:
+Replace the default file store with your own implementation:
 
 ```csharp
 public interface IHttpInspectorStore
@@ -343,73 +166,300 @@ public interface IHttpInspectorStore
 }
 ```
 
-Use the built-in JSONL file store or replace it with:
-
-- SQLite  
-- SQL databases  
-- Cloud blob storage  
-- In-memory ring buffers  
-- Custom backends  
+Options: SQLite, SQL databases, cloud storage, in-memory buffers, or custom backends.
 
 ---
 
 ## 🌐 Streaming API
 
-Query traffic programmatically:
+Query traffic programmatically: `/http-inspector/stream?since=<timestamp>`
 
-```
-/http-inspector/stream?since=<timestamp>
-```
-
-Returns an efficient JSON array with incremental fetch capability, ideal for:
-
-- automation  
-- custom dashboards  
-- debugging pipelines  
-- IDE integrations  
+Returns efficient JSON arrays with incremental fetch capability for automation, custom dashboards, and IDE integrations.
 
 ---
 
-# ⚙️ Optional Configuration
+# 📖 Configuration Guide
 
-## HttpInspector Options
+## Environment Presets
+
+HttpInspector provides three presets for quick configuration:
+
+### Development
+```csharp
+builder.Services.AddHttpInspector().UseDevelopmentDefaults();
+```
+- ✅ Body capture, ✅ Replay, ❌ Authentication
+
+### Production
+```csharp
+builder.Services.AddHttpInspector().UseProductionDefaults();
+```
+- ❌ Body capture, ❌ Replay, ✅ Authentication
+
+### Staging
+```csharp
+builder.Services.AddHttpInspector().UseStagingDefaults();
+```
+- ✅ Body capture, ❌ Replay, ✅ Authentication
+
+[See advanced security configuration →](#-security-configuration)
+
+---
+
+## Basic Customization
 
 ```csharp
-builder.Services.AddHttpInspector(options =>
+builder.Services.AddHttpInspector()
+    .UseDevelopmentDefaults()
+    .Configure(options =>
+    {
+        options.BasePath = "/inspector";
+        options.MaxBodyLength = 128_000;
+        options.PathExcludePatterns = new[] { "/health", "/metrics" };
+    });
+```
+
+[See full configuration reference →](#️-configuration-reference)
+
+---
+
+# 📚 Advanced Configuration
+
+## 🔒 Security Configuration
+
+### Environment Presets
+
+Choose the preset that matches your deployment scenario:
+
+**Development Preset**
+```csharp
+builder.Services.AddHttpInspector().UseDevelopmentDefaults();
+```
+- Body capture: ✅ Enabled
+- Request replay: ✅ Enabled  
+- Authentication: ❌ Not required
+
+**Production Preset**
+```csharp
+builder.Services.AddHttpInspector().UseProductionDefaults();
+```
+- Body capture: ❌ Disabled
+- Request replay: ❌ Disabled
+- Authentication: ✅ Required
+
+**Staging Preset**
+```csharp
+builder.Services.AddHttpInspector().UseStagingDefaults();
+```
+- Body capture: ✅ Enabled (for debugging)
+- Request replay: ❌ Disabled (for safety)
+- Authentication: ✅ Required
+
+### Custom Security Configuration
+
+Override preset defaults or configure from scratch:
+
+```csharp
+builder.Services.AddHttpInspector()
+    .UseProductionDefaults()
+    .Configure(options =>
+    {
+        options.RequireAuthentication = true;
+        options.AuthorizationPolicy = "AdminOnly";
+        options.AllowedNetworks = new[] { "10.0.0.0/8", "192.168.1.0/24" };
+        options.AllowBodyCapture = false;
+        options.AllowReplay = false;
+    });
+```
+
+### Custom Redaction Patterns
+
+Add your own redaction rules using wildcard patterns:
+
+```csharp
+builder.Services.AddHttpInspector()
+    .UseProductionDefaults()
+    .Configure(options =>
+    {
+        // Redact custom headers (supports wildcards)
+        options.Redaction.RedactedHeaders = new[]
+        {
+            "Authorization",
+            "X-Custom-*",      // Matches X-Custom-Token, X-Custom-Secret, etc.
+            "X-Internal-*"
+        };
+        
+        // Redact query parameters
+        options.Redaction.RedactQueryKeys = new[] { "apiKey", "sessionToken" };
+        
+        // Redact JSON body fields (JSONPath syntax)
+        options.Redaction.BodyRedactionPaths = new[] { "$.password", "$.user.ssn" };
+    });
+```
+
+### Network Restrictions
+
+Limit access to specific IP ranges (CIDR notation):
+
+```csharp
+builder.Services.AddHttpInspector()
+    .UseProductionDefaults()
+    .Configure(options =>
+    {
+        options.AllowedNetworks = new[]
+        {
+            "192.168.1.0/24",   // Local network
+            "10.0.0.0/8",       // Corporate network
+            "127.0.0.1"         // Localhost only
+        };
+    });
+```
+
+### Content-Type Filtering
+
+Control what content types are captured:
+
+```csharp
+builder.Services.AddHttpInspector()
+    .UseDevelopmentDefaults()
+    .Configure(options =>
+    {
+        options.Redaction.SkipBodyContentTypes = new[]
+        {
+            "multipart/form-data",  // File uploads
+            "application/pdf",
+            "image/*",
+            "video/*"
+        };
+    });
+```
+
+### Custom Authorization Policies
+
+Integrate with ASP.NET Core authorization:
+
+```csharp
+// Define policy
+builder.Services.AddAuthorization(options =>
 {
-    // Customize the dashboard base path (default: "/http-inspector")
-    options.BasePath = "/inspector";
-    
-    // Enable/disable request body logging (default: true)
-    options.LogBodies = true;
-    
-    // Enable outgoing HTTP request tracking (default: true)
-    options.EnableOutgoingTracking = true;
-    
-    // Maximum body length to capture in bytes (default: 10,000)
-    options.MaxBodyLength = 10_000;
-    
-    // Require authentication to access dashboard (default: false)
-    options.RequireAuthentication = false;
-    
-    // Headers to redact from logs (default: Authorization, Cookie)
-    options.RedactedHeaders = new[] { "Authorization", "Cookie", "X-API-Key" };
-    
-    // Path patterns to include/exclude from logging
-    options.PathIncludePatterns = new[] { "/api/*" };
-    options.PathExcludePatterns = new[] { "/health", "/metrics" };
+    options.AddPolicy("InspectorAccess", policy =>
+        policy.RequireRole("Admin", "Developer"));
+});
+
+// Apply to HttpInspector
+builder.Services.AddHttpInspector()
+    .UseProductionDefaults()
+    .Configure(options =>
+    {
+        options.RequireAuthentication = true;
+        options.AuthorizationPolicy = "InspectorAccess";
+    });
+```
+
+## 🔗 Outgoing HTTP Tracking Configuration
+
+Track outgoing HTTP calls made through `IHttpClientFactory`:
+
+```csharp
+builder.Services.AddHttpInspector()
+    .UseDevelopmentDefaults()
+    .Configure(options =>
+    {
+        options.EnableOutgoingTracking = true;
+        
+        // Optional: configure outgoing tracking behavior
+        options.Outgoing.IncludeUrlQuery = true;
+        options.Outgoing.MaxBodyLength = 4_096;
+        options.Outgoing.RedactedHeaders = new[] { "Authorization", "Cookie" };
+    });
+```
+
+Then inject `IHttpClientFactory` in your endpoints or controllers:
+
+```csharp
+app.MapGet("/api/external", async (IHttpClientFactory factory) =>
+{
+    var client = factory.CreateClient();
+    var response = await client.GetAsync("https://api.example.com/data");
+    return await response.Content.ReadAsStringAsync();
 });
 ```
 
-## Storage Options
+All HTTP calls made through `IHttpClientFactory` will be automatically tracked and correlated with their parent requests.
+
+## 📦 Storage Configuration
+
+Configure the built-in JSONL file storage:
 
 ```csharp
 app.UseHttpInspector(store =>
 {
     store.MaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
-    store.RetainedFileCount = 4;
-    store.RetainedDays = 14;
+    store.RetainedFileCount = 4;               // Keep last 4 files
+    store.RetainedDays = 14;                   // Delete files older than 14 days
 });
+```
+
+### Custom Storage Backend
+
+Replace the default storage with your own implementation:
+
+```csharp
+public interface IHttpInspectorStore
+{
+    IAsyncEnumerable<JsonElement> GetEventsAsync(DateTimeOffset? since, CancellationToken ct);
+}
+
+// Register your implementation
+builder.Services.AddSingleton<IHttpInspectorStore, MyCustomStore>();
+```
+
+## ⚙️ Full Configuration Reference
+
+All available options with their defaults:
+
+```csharp
+builder.Services.AddHttpInspector()
+    .UseDevelopmentDefaults()
+    .Configure(options =>
+    {
+        // Dashboard settings
+        options.BasePath = "/http-inspector";           // Dashboard URL path
+        options.Enabled = true;                         // Enable/disable middleware
+        
+        // Capture settings
+        options.AllowBodyCapture = true;                // Capture request/response bodies
+        options.LogBodies = true;                       // Log bodies to storage
+        options.MaxBodyLength = 10_000;                 // Max body size in bytes (10KB)
+        
+        // Security settings
+        options.RequireAuthentication = false;          // Require auth to access dashboard
+        options.AuthorizationPolicy = null;             // Custom authorization policy name
+        options.AllowedNetworks = null;                 // IP whitelist (CIDR notation)
+        options.AllowReplay = true;                     // Enable replay functionality
+        
+        // Filtering
+        options.PathIncludePatterns = Array.Empty<string>();  // Include only matching paths
+        options.PathExcludePatterns = Array.Empty<string>();  // Exclude matching paths
+        
+        // Outgoing request tracking
+        options.EnableOutgoingTracking = true;          // Track outgoing HTTP calls
+        options.Outgoing = new HttpInspectorOutgoingOptions
+        {
+            IncludeUrlQuery = true,                     // Capture query strings
+            MaxBodyLength = 10_000,                     // Max body size in bytes
+            RedactedHeaders = new[] { "Authorization", "Cookie" }
+        };
+        
+        // Redaction
+        options.Redaction = new HttpInspectorRedactionOptions
+        {
+            RedactedHeaders = new[] { "Authorization", "Cookie", "Set-Cookie" },
+            RedactQueryKeys = Array.Empty<string>(),
+            BodyRedactionPaths = Array.Empty<string>(),
+            SkipBodyContentTypes = Array.Empty<string>()
+        };
+    });
 ```
 
 ---

@@ -8,29 +8,18 @@ namespace HttpInspector.AspNetCore.Tests.Options;
 public class HttpInspectorSecurityOptionsTests
 {
     [Fact]
-    public void DefaultOptions_Development_HasSecureDefaults()
+    public void DefaultOptions_HasReasonableDefaults()
     {
         // Arrange
         var options = new HttpInspectorOptions();
 
         // Assert
         Assert.True(options.Enabled);
-        Assert.False(options.AllowProduction);
         Assert.True(options.AllowBodyCapture);
         Assert.True(options.AllowReplay);
         Assert.False(options.RequireAuthentication);
         Assert.Null(options.AuthorizationPolicy);
         Assert.Null(options.AllowedNetworks);
-    }
-
-    [Fact]
-    public void AllowProduction_DefaultsToFalse()
-    {
-        // Arrange & Act
-        var options = new HttpInspectorOptions();
-
-        // Assert
-        Assert.False(options.AllowProduction);
     }
 
     [Fact]
