@@ -52,7 +52,7 @@ app.Run();
 # 🖼 Dashboard Preview
 1. Install the NuGet package:
    ```bash
-   dotnet add package HttpInspector.AspNetCore --version 1.5.0
+   dotnet add package HttpInspector.AspNetCore --version 1.6.0
    ```
   2. Use the [Quick Start Guide](#-quick-start) to set up the package in your ASP.NET project
   3. Open the dashboard:
@@ -60,7 +60,7 @@ app.Run();
   http://localhost:<port>/http-inspector
   ```
 
-![Dashboard Preview](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.4.0/dashboard.png?raw=true)
+![Dashboard Preview](https://github.com/play4uman/HttpInspector/blob/master/docs/images/dashboard.png?raw=true)
 
 ---
 
@@ -76,8 +76,10 @@ Access `/http-inspector` to see:
 - Duration bars & status color coding  
 - Free-text, method, and status filters  
 - Smooth, responsive UI designed for developers  
+- Supports static time ranges as well as real-time updates
 
-![Expanded Request](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.4.0/request_details.png?raw=true)
+![Time Ranges](https://github.com/play4uman/HttpInspector/blob/master/docs/images/time_range.png?raw=true)
+
 
 ---
 
@@ -90,7 +92,7 @@ Automatically captures all `HttpClient` calls triggered during request processin
 - Response status and duration  
 - End-to-end request chain visibility  
 
-![Outgoing Requests](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.4.0/outgoing_request_tracking.png?raw=true)
+![Outgoing Requests](https://github.com/play4uman/HttpInspector/blob/master/docs/images/outgoing_request_tracking.png?raw=true)
 
 ---
 
@@ -113,7 +115,7 @@ Features:
   - Raw HTTP
 - Replay results shown directly inside the UI  
 
-![Replay Feature](https://github.com/play4uman/HttpInspector/blob/master/docs/images/v1.5.0/replay_request.png?raw=true)
+![Replay Feature](https://github.com/play4uman/HttpInspector/blob/master/docs/images/replay_request.png?raw=true)
 
 
 ---
