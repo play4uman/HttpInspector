@@ -52,7 +52,8 @@ builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>()
 
 builder.Services.AddHttpInspector(options =>
 {
-    options.BasePath = "/http-inspector";
+    // Uncomment to change the default UI path
+    //options.BasePath = "/http-inspector";
     options.LogBodies = true;
     options.EnableOutgoingTracking = true;
 

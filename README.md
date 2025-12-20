@@ -69,7 +69,7 @@ app.Run();
 # 🖼 Dashboard Preview
 1. Install the NuGet package:
    ```bash
-   dotnet add package HttpInspector.AspNetCore --version 1.6.0
+   dotnet add package HttpInspector.AspNetCore
    ```
   2. Use the [Quick Start Guide](#-quick-start) to set up the package in your ASP.NET project
   3. Open the dashboard:
@@ -215,6 +215,37 @@ Returns an efficient JSON array with incremental fetch capability, ideal for:
 ---
 
 # ⚙️ Optional Configuration
+
+## HttpInspector Options
+
+```csharp
+builder.Services.AddHttpInspector(options =>
+{
+    // Customize the dashboard base path (default: "/http-inspector")
+    options.BasePath = "/inspector";
+    
+    // Enable/disable request body logging (default: true)
+    options.LogBodies = true;
+    
+    // Enable outgoing HTTP request tracking (default: true)
+    options.EnableOutgoingTracking = true;
+    
+    // Maximum body length to capture in bytes (default: 10,000)
+    options.MaxBodyLength = 10_000;
+    
+    // Require authentication to access dashboard (default: false)
+    options.RequireAuthentication = false;
+    
+    // Headers to redact from logs (default: Authorization, Cookie)
+    options.RedactedHeaders = new[] { "Authorization", "Cookie", "X-API-Key" };
+    
+    // Path patterns to include/exclude from logging
+    options.PathIncludePatterns = new[] { "/api/*" };
+    options.PathExcludePatterns = new[] { "/health", "/metrics" };
+});
+```
+
+## Storage Options
 
 ```csharp
 app.UseHttpInspector(store =>
