@@ -111,35 +111,13 @@ export class ReplayCoordinator {
             headers: {},
             body: ''
         };
-        return `
-            <div class="replay-section" data-replay-entry="${entryId}">
-                <div class="replay-modal-tabs" role="tablist">
-                    <button type="button" class="replay-modal-tab is-active" data-replay-modal-tab="editor" data-tab-entry="${entryId}">Request</button>
-                    <button type="button" class="replay-modal-tab" data-replay-modal-tab="response" data-tab-entry="${entryId}">Response</button>
-                </div>
-                
-                <div class="replay-modal-panel is-active" data-replay-modal-panel="editor" data-panel-entry="${entryId}">
-                    <p class="replay-hint">Create a new request by specifying the method, URL, headers, and body.</p>
-                    <div class="replay-actions">
-                        <button type="button" class="replay-action primary" data-replay-send="${entryId}">
-                            <span class="icon-send">➤</span>
-                            <span class="send-label">Send Request</span>
-                            <span class="send-spinner" aria-hidden="true"></span>
-                        </button>
-                    </div>
-
-                    <div class="replay-editor" data-replay-editor="${entryId}">
-                        ${this.renderEditor(entryId, emptyRequest)}
-                    </div>
-                </div>
-                
-                <div class="replay-modal-panel" data-replay-modal-panel="response" data-panel-entry="${entryId}">
-                    <div class="replay-result-card" data-replay-result="${entryId}">
-                        <p class="muted">Response will appear here after you send the request.</p>
-                    </div>
-                </div>
-            </div>
-        `;
+        return this.renderModalContent({
+            entryId,
+            request: emptyRequest,
+            hintText: 'Create a new request by specifying the method, URL, headers, and body.',
+            responseEmptyText: 'Response will appear here after you send the request.',
+            includeCommands: false
+        });
     }
 
     bindNewRequestInteractions(entryId) {
@@ -393,15 +371,42 @@ export class ReplayCoordinator {
     }
 
     renderPanel(entryId, request) {
-        const curlPreId = `${entryId}-curl-command`;
-        const psPreId = `${entryId}-powershell-command`;
         const curlCommand = request ? this.buildCurlCommand(request) : '';
         const psCommand = request ? this.buildPowerShellCommand(request) : '';
+        const editorMarkup = request ? this.renderEditor(entryId, request) : '<p class="muted">Original request unavailable.</p>';
+        
+        return this.renderModalContent({
+            entryId,
+            request,
+            hintText: 'Review the captured request, adjust headers or body, and replay it or copy a command.',
+            responseEmptyText: 'Replay response will appear here after you send the request.',
+            includeCommands: true,
+            curlCommand,
+            psCommand,
+            editorMarkup
+        });
+    }
+
+    renderModalContent({ entryId, request, hintText, responseEmptyText, includeCommands, curlCommand, psCommand, editorMarkup }) {
+        const curlPreId = `${entryId}-curl-command`;
+        const psPreId = `${entryId}-powershell-command`;
         const curlText = curlCommand ? escapeHtml(curlCommand) : 'Command unavailable';
         const psText = psCommand ? escapeHtml(psCommand) : 'Command unavailable';
         const curlClass = curlCommand ? 'code-block' : 'code-block muted';
         const psClass = psCommand ? 'code-block' : 'code-block muted';
-        const editorMarkup = request ? this.renderEditor(entryId, request) : '<p class="muted">Original request unavailable.</p>';
+        const editor = editorMarkup || (request ? this.renderEditor(entryId, request) : '<p class="muted">Request unavailable.</p>');
+        
+        const commandsSection = includeCommands ? `
+            <div class="replay-command-card">
+                <header>cURL<button class="copy-btn" type="button" data-copy-command="${curlPreId}">Copy</button></header>
+                <pre class="${curlClass}" id="${curlPreId}" data-has-command="${curlCommand ? 'true' : 'false'}">${curlText}</pre>
+            </div>
+            <div class="replay-command-card">
+                <header>PowerShell<button class="copy-btn" type="button" data-copy-command="${psPreId}">Copy</button></header>
+                <pre class="${psClass}" id="${psPreId}" data-has-command="${psCommand ? 'true' : 'false'}">${psText}</pre>
+            </div>
+        ` : '';
+        
         return `
             <div class="replay-section" data-replay-entry="${entryId}">
                 <div class="replay-modal-tabs" role="tablist">
@@ -410,7 +415,7 @@ export class ReplayCoordinator {
                 </div>
                 
                 <div class="replay-modal-panel is-active" data-replay-modal-panel="editor" data-panel-entry="${entryId}">
-                    <p class="replay-hint">Review the captured request, adjust headers or body, and replay it or copy a command.</p>
+                    <p class="replay-hint">${hintText}</p>
                     <div class="replay-actions">
                         <button type="button" class="replay-action primary" data-replay-send="${entryId}">
                             <span class="icon-send">➤</span>
@@ -420,22 +425,15 @@ export class ReplayCoordinator {
                     </div>
 
                     <div class="replay-editor" data-replay-editor="${entryId}">
-                        ${editorMarkup}
+                        ${editor}
                     </div>
                     
-                    <div class="replay-command-card">
-                        <header>cURL<button class="copy-btn" type="button" data-copy-command="${curlPreId}">Copy</button></header>
-                        <pre class="${curlClass}" id="${curlPreId}" data-has-command="${curlCommand ? 'true' : 'false'}">${curlText}</pre>
-                    </div>
-                    <div class="replay-command-card">
-                        <header>PowerShell<button class="copy-btn" type="button" data-copy-command="${psPreId}">Copy</button></header>
-                        <pre class="${psClass}" id="${psPreId}" data-has-command="${psCommand ? 'true' : 'false'}">${psText}</pre>
-                    </div>
+                    ${commandsSection}
                 </div>
                 
                 <div class="replay-modal-panel" data-replay-modal-panel="response" data-panel-entry="${entryId}">
                     <div class="replay-result-card" data-replay-result="${entryId}">
-                        <p class="muted">Replay response will appear here after you send the request.</p>
+                        <p class="muted">${responseEmptyText}</p>
                     </div>
                 </div>
             </div>
