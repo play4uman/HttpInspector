@@ -129,6 +129,7 @@
 }
 
 /* Replay Open Button in Detail Tabs */
+.chip-grid .new-request-btn,
 .detail-tab.replay-open-btn {
     background: linear-gradient(135deg, rgba(28, 210, 209, 0.15), rgba(28, 210, 209, 0.05));
     border: 1px solid rgba(28, 210, 209, 0.3);
@@ -138,12 +139,14 @@
     gap: 0.35rem;
 }
 
+.chip-grid .new-request-btn:hover,
 .detail-tab.replay-open-btn:hover {
     background: linear-gradient(135deg, rgba(28, 210, 209, 0.25), rgba(28, 210, 209, 0.1));
     border-color: rgba(28, 210, 209, 0.5);
     color: var(--accent);
 }
 
+.chip-grid .new-request-btn,
 .detail-tab.replay-open-btn .icon-send {
     font-size: 0.85em;
 }

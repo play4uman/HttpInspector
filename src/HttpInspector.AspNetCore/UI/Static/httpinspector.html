@@ -171,6 +171,9 @@
                     </div>
                     <div class="chip-grid time-quick-group" id="clearTimelineButton">
                         <button type="button" data-purge="clearScreen">Clear Screen</button>
+                        <button type="button" class="new-request-btn" id="newRequestButton" aria-haspopup="dialog">
+                            <span class="icon-send">➤</span> New Request
+                        </button>
                     </div>
                 </section>
                 <section class="chip-section">
@@ -230,6 +233,18 @@
                 <button type="button" class="close-replay-modal" id="closeReplayModal" aria-label="Close replay editor">×</button>
             </div>
             <div class="replay-modal-content" id="replayModalContent">
+                <p class="muted">Loading editor...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="replay-modal" id="newRequestModal" hidden>
+        <div class="replay-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="newRequestModalTitle">
+            <div class="replay-modal-header">
+                <h2 id="newRequestModalTitle">New Request</h2>
+                <button type="button" class="close-replay-modal" id="closeNewRequestModal" aria-label="Close new request editor">×</button>
+            </div>
+            <div class="replay-modal-content" id="newRequestModalContent">
                 <p class="muted">Loading editor...</p>
             </div>
         </div>

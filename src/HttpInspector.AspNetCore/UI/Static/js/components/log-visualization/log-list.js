@@ -78,7 +78,7 @@ export class LogList {
         const sourceEntryId = this.replay?.findSourceEntryId(pair.id);
         const parentAnchor = this.replay.buildReplayAnchor(sourceEntryId, undefined, '(parent)');
         const replayLink = sourceEntryId 
-            ? `<span style="margin-left: auto; padding-left: 8px;">${parentAnchor}</span>`
+            ? `<!--<span style="margin-left: auto; padding-left: 8px;">${parentAnchor}</span>-->` // Todo: one day we might want this visible
             : '';
         
         return `

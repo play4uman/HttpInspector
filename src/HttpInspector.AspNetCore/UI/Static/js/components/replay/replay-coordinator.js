@@ -11,6 +11,10 @@ export class ReplayCoordinator {
         this.modalContent = null;
         this.closeModalBtn = null;
         this.currentEntryId = null;
+        this.newRequestModal = null;
+        this.newRequestModalContent = null;
+        this.closeNewRequestModalBtn = null;
+        this.newRequestButton = null;
     }
 
     attach(listElement, entries) {
@@ -19,6 +23,10 @@ export class ReplayCoordinator {
         this.modal = document.getElementById('replayModal');
         this.modalContent = document.getElementById('replayModalContent');
         this.closeModalBtn = document.getElementById('closeReplayModal');
+        this.newRequestModal = document.getElementById('newRequestModal');
+        this.newRequestModalContent = document.getElementById('newRequestModalContent');
+        this.closeNewRequestModalBtn = document.getElementById('closeNewRequestModal');
+        this.newRequestButton = document.getElementById('newRequestButton');
         this.setupModalHandlers();
     }
 
@@ -32,9 +40,29 @@ export class ReplayCoordinator {
                 this.closeModal();
             }
         });
+        
+        // New request modal handlers
+        if (this.newRequestModal && this.closeNewRequestModalBtn) {
+            this.closeNewRequestModalBtn.addEventListener('click', () => this.closeNewRequestModal());
+            this.newRequestModal.addEventListener('click', (event) => {
+                if (event.target === this.newRequestModal) {
+                    this.closeNewRequestModal();
+                }
+            });
+        }
+        
+        // New request button handler
+        if (this.newRequestButton) {
+            this.newRequestButton.addEventListener('click', () => this.openNewRequestModal());
+        }
+        
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && !this.modal?.hidden) {
-                this.closeModal();
+            if (event.key === 'Escape') {
+                if (!this.modal?.hidden) {
+                    this.closeModal();
+                } else if (!this.newRequestModal?.hidden) {
+                    this.closeNewRequestModal();
+                }
             }
         });
     }
@@ -57,6 +85,251 @@ export class ReplayCoordinator {
         this.currentEntryId = null;
     }
 
+    openNewRequestModal() {
+        if (!this.newRequestModal || !this.newRequestModalContent) {
+            return;
+        }
+        const entryId = 'new-request';
+        const content = this.renderNewRequestPanel(entryId);
+        this.newRequestModalContent.innerHTML = content;
+        this.newRequestModal.hidden = false;
+        this.bindNewRequestInteractions(entryId);
+    }
+
+    closeNewRequestModal() {
+        if (!this.newRequestModal) {
+            return;
+        }
+        this.newRequestModal.hidden = true;
+    }
+
+    renderNewRequestPanel(entryId) {
+        const emptyRequest = {
+            method: 'GET',
+            path: '/',
+            queryString: '',
+            headers: {},
+            body: ''
+        };
+        return `
+            <div class="replay-section" data-replay-entry="${entryId}">
+                <div class="replay-modal-tabs" role="tablist">
+                    <button type="button" class="replay-modal-tab is-active" data-replay-modal-tab="editor" data-tab-entry="${entryId}">Request</button>
+                    <button type="button" class="replay-modal-tab" data-replay-modal-tab="response" data-tab-entry="${entryId}">Response</button>
+                </div>
+                
+                <div class="replay-modal-panel is-active" data-replay-modal-panel="editor" data-panel-entry="${entryId}">
+                    <p class="replay-hint">Create a new request by specifying the method, URL, headers, and body.</p>
+                    <div class="replay-actions">
+                        <button type="button" class="replay-action primary" data-replay-send="${entryId}">
+                            <span class="icon-send">➤</span>
+                            <span class="send-label">Send Request</span>
+                            <span class="send-spinner" aria-hidden="true"></span>
+                        </button>
+                    </div>
+
+                    <div class="replay-editor" data-replay-editor="${entryId}">
+                        ${this.renderEditor(entryId, emptyRequest)}
+                    </div>
+                </div>
+                
+                <div class="replay-modal-panel" data-replay-modal-panel="response" data-panel-entry="${entryId}">
+                    <div class="replay-result-card" data-replay-result="${entryId}">
+                        <p class="muted">Response will appear here after you send the request.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    bindNewRequestInteractions(entryId) {
+        if (!this.newRequestModalContent) {
+            return;
+        }
+        
+        const container = this.newRequestModalContent;
+        
+        // Send button
+        container.querySelectorAll(`[data-replay-send="${entryId}"]`).forEach(button => {
+            button.addEventListener('click', () => {
+                this.handleNewRequestSend(entryId, button);
+            });
+        });
+        
+        // Add header button
+        container.querySelectorAll(`[data-add-header="${entryId}"]`).forEach(button => {
+            button.addEventListener('click', () => {
+                this.addHeaderRow(entryId);
+            });
+        });
+        
+        // Header editor
+        container.querySelectorAll(`[data-header-editor="${entryId}"]`).forEach(editorContainer => {
+            editorContainer.addEventListener('click', event => {
+                const target = event.target;
+                if (!(target instanceof HTMLElement)) {
+                    return;
+                }
+                if (!target.matches('[data-remove-header]')) {
+                    return;
+                }
+                const row = target.closest('[data-header-row]');
+                row?.remove();
+                this.updateEmptyHeaders(entryId);
+            });
+        });
+        
+        // Tab switching
+        container.querySelectorAll(`[data-tab-entry="${entryId}"]`).forEach(tabButton => {
+            tabButton.addEventListener('click', () => {
+                const tabName = tabButton.getAttribute('data-replay-modal-tab');
+                this.switchNewRequestTab(entryId, tabName);
+            });
+        });
+    }
+
+    switchNewRequestTab(entryId, tabName) {
+        const container = this.newRequestModalContent;
+        if (!container) {
+            return;
+        }
+        
+        // Update tabs
+        container.querySelectorAll(`[data-tab-entry="${entryId}"]`).forEach(tab => {
+            tab.classList.toggle('is-active', tab.getAttribute('data-replay-modal-tab') === tabName);
+        });
+        
+        // Update panels
+        container.querySelectorAll(`[data-panel-entry="${entryId}"]`).forEach(panel => {
+            panel.classList.toggle('is-active', panel.getAttribute('data-replay-modal-panel') === tabName);
+        });
+    }
+
+    async handleNewRequestSend(entryId, button) {
+        if (!entryId || !button || button.disabled) {
+            return;
+        }
+        
+        const emptyRequest = {
+            method: 'GET',
+            path: '/',
+            queryString: '',
+            headers: {},
+            body: ''
+        };
+        
+        let payload;
+        try {
+            payload = this.collectEditedRequestFromNewModal(entryId, emptyRequest);
+        } catch (err) {
+            this.showNewRequestError(entryId, err);
+            return;
+        }
+        
+        const sessionId = this.registerSession(entryId);
+        const originalLabel = button.textContent;
+        button.dataset.originalSendLabel = originalLabel ?? 'Send Request';
+        button.dataset.replaySending = 'true';
+        button.disabled = true;
+        button.textContent = 'Sending...';
+        this.showNewRequestPending(entryId);
+        
+        try {
+            const result = await this.replayRequest(payload, sessionId);
+            const enriched = { ...result, sessionId };
+            this.storeReplayResult(sessionId, enriched);
+            this.showNewRequestResult(entryId, enriched);
+            // Auto-switch to response tab
+            this.switchNewRequestTab(entryId, 'response');
+        } catch (err) {
+            this.sessions.delete(sessionId);
+            this.showNewRequestError(entryId, err);
+        } finally {
+            delete button.dataset.replaySending;
+            button.disabled = false;
+            button.textContent = button.dataset.originalSendLabel ?? 'Send Request';
+        }
+    }
+
+    collectEditedRequestFromNewModal(entryId, originalRequest) {
+        const form = this.newRequestModalContent?.querySelector(`[data-replay-form="${entryId}"]`);
+        if (!form) {
+            return originalRequest;
+        }
+        const methodField = form.querySelector('[data-replay-field="method"]');
+        const urlField = form.querySelector('[data-replay-field="url"]');
+        const bodyField = form.querySelector('[data-replay-field="body"]');
+        const method = (methodField?.value || 'GET').toUpperCase();
+        const enteredUrl = urlField?.value?.trim();
+        
+        if (!enteredUrl) {
+            throw new Error('Target URL is required.');
+        }
+        
+        const resolved = this.resolveEditorUrl(enteredUrl);
+        if (!resolved) {
+            throw new Error('Target URL is invalid.');
+        }
+        const headers = this.readHeadersFromNewRequestEditor(entryId);
+        const body = bodyField?.value ?? '';
+        return {
+            method,
+            path: resolved.pathname,
+            queryString: resolved.search,
+            headers,
+            body,
+            targetUrl: resolved.href
+        };
+    }
+
+    readHeadersFromNewRequestEditor(entryId) {
+        if (!entryId) {
+            return {};
+        }
+        const container = this.newRequestModalContent?.querySelector(`[data-header-editor="${entryId}"]`);
+        if (!container) {
+            return {};
+        }
+        const headers = {};
+        container.querySelectorAll('[data-header-row]').forEach(row => {
+            const nameInput = row.querySelector('[data-header-name]');
+            const valueInput = row.querySelector('[data-header-value]');
+            const key = nameInput?.value?.trim();
+            if (!key) {
+                return;
+            }
+            headers[key] = valueInput?.value ?? '';
+        });
+        return headers;
+    }
+
+    showNewRequestPending(entryId) {
+        const container = this.getNewRequestContainer(entryId);
+        if (container) {
+            container.innerHTML = '<p class="muted">Sending request...</p>';
+        }
+    }
+
+    showNewRequestResult(entryId, result) {
+        const container = this.getNewRequestContainer(entryId);
+        if (container) {
+            const enrichedResult = result.sessionId ? result : { ...result, sessionId: this.findSessionIdBySourceEntry(entryId) };
+            container.innerHTML = this.renderReplayResultContent(enrichedResult);
+        }
+    }
+
+    showNewRequestError(entryId, err) {
+        const container = this.getNewRequestContainer(entryId);
+        if (container) {
+            const message = err instanceof Error ? err.message : (typeof err === 'string' ? err : 'Unexpected error.');
+            container.innerHTML = this.renderReplayErrorContent(message);
+        }
+    }
+
+    getNewRequestContainer(entryId) {
+        return this.newRequestModalContent?.querySelector(`[data-replay-result="${entryId}"]`);
+    }
+
     reset() {
         this.sessions.clear();
     }
@@ -74,7 +347,7 @@ export class ReplayCoordinator {
         return `
             <div class="replay-section" data-replay-entry="${entryId}">
                 <div class="replay-modal-tabs" role="tablist">
-                    <button type="button" class="replay-modal-tab is-active" data-replay-modal-tab="editor" data-tab-entry="${entryId}">Editor</button>
+                    <button type="button" class="replay-modal-tab is-active" data-replay-modal-tab="editor" data-tab-entry="${entryId}">Request</button>
                     <button type="button" class="replay-modal-tab" data-replay-modal-tab="response" data-tab-entry="${entryId}">Response</button>
                 </div>
                 
@@ -382,6 +655,7 @@ export class ReplayCoordinator {
             return;
         }
         const container = this.modalContent?.querySelector(`[data-header-editor="${entryId}"]`)
+            || this.newRequestModalContent?.querySelector(`[data-header-editor="${entryId}"]`)
             || this.listElement?.querySelector(`[data-header-editor="${entryId}"]`);
         if (!container) {
             return;
@@ -422,8 +696,10 @@ export class ReplayCoordinator {
             return;
         }
         const container = this.modalContent?.querySelector(`[data-header-editor="${entryId}"]`)
+            || this.newRequestModalContent?.querySelector(`[data-header-editor="${entryId}"]`)
             || this.listElement?.querySelector(`[data-header-editor="${entryId}"]`);
         const emptyState = this.modalContent?.querySelector(`[data-headers-empty="${entryId}"]`)
+            || this.newRequestModalContent?.querySelector(`[data-headers-empty="${entryId}"]`)
             || this.listElement?.querySelector(`[data-headers-empty="${entryId}"]`);
         if (!container || !emptyState) {
             return;
@@ -588,8 +864,8 @@ export class ReplayCoordinator {
     
     findSourceEntryId(replayedEntryId) {
         for (const [sessionId, session] of this.sessions.entries()) {
-            if (session.resolvedEntryId === replayedEntryId) {
-                return session.sourceEntryId;
+            if (session.sourceEntryId === replayedEntryId) {
+                return session.resolvedEntryId;
             }
         }
         return null;
