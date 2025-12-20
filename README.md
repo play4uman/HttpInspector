@@ -58,7 +58,12 @@ Try triggering some API calls and watch them appear instantly in the dashboard!
 
 # 🚀 Quick Start
 
-Enable HttpInspector with **two lines**:
+1. Install the NuGet package:
+```bash
+dotnet add package HttpInspector.AspNetCore
+```
+
+2. Enable HttpInspector with **two lines**:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -75,6 +80,13 @@ app.UseHttpInspector();
 
 app.Run();
 ```
+
+3. Open the dashboard:
+```
+http://localhost:<port>/http-inspector
+```
+
+![Dashboard Preview](https://github.com/play4uman/HttpInspector/blob/master/docs/images/dashboard.png?raw=true)
 
 ## Recommended “safe” configuration
 
@@ -110,21 +122,6 @@ app.UseHttpInspector(options =>
 ```
 
 > **Do not** run with body logging + no auth on a publicly reachable environment.
-
----
-
-# 🖼 Dashboard Preview
-1. Install the NuGet package:
-   ```bash
-   dotnet add package HttpInspector.AspNetCore
-   ```
-  2. Use the [Quick Start Guide](#-quick-start) to set up the package in your ASP.NET project
-  3. Open the dashboard:
-  ```
-  http://localhost:<port>/http-inspector
-  ```
-
-![Dashboard Preview](https://github.com/play4uman/HttpInspector/blob/master/docs/images/dashboard.png?raw=true)
 
 ---
 
