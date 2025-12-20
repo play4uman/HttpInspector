@@ -92,6 +92,35 @@ Automatically captures all `HttpClient` calls triggered during request processin
 - Response status and duration  
 - End-to-end request chain visibility  
 
+### How to opt-in
+
+Enable outgoing HTTP request tracking in your configuration:
+
+```csharp
+builder.Services.AddHttpInspector(options =>
+{
+    options.EnableOutgoingTracking = true;
+    
+    // Optional: configure outgoing tracking behavior
+    options.Outgoing.IncludeUrlQuery = true;
+    options.Outgoing.MaxBodyLength = 4_096;
+});
+```
+
+Then simply inject `IHttpClientFactory` in your endpoints or controllers:
+
+```csharp
+app.MapGet("/api/external", async (IHttpClientFactory factory) =>
+{
+    var client = factory.CreateClient("demo-api");
+    var response = await client.GetAsync("https://api.example.com/data");
+    var payload = await response.Content.ReadAsStringAsync();
+    return Results.Text(payload, "application/json");
+});
+```
+
+That's it! All HTTP calls made through `IHttpClientFactory` will be automatically tracked and correlated with their parent requests.
+
 ![Outgoing Requests](https://github.com/play4uman/HttpInspector/blob/master/docs/images/outgoing_request_tracking.png?raw=true)
 
 ---
