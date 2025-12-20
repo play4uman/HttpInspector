@@ -365,3 +365,4 @@ FodyWeavers.xsd
 # Ignore app log data
 *.jsonl
 App_Data/
+/samples/SampleApp/Properties/ServiceDependencies/http-inspector-demo - Web Deploy/profile.arm.json

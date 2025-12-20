@@ -27,6 +27,23 @@ It provides immediate clarity into what the API is doing **right now**, especial
 
 ---
 
+# 🎮 Live Demo
+
+**See HttpInspector in action:**
+
+👉 **[Live HttpInspector demo](https://http-inspector-demo-bdc7bbg9ftcxh4a8.germanywestcentral-01.azurewebsites.net/http-inspector)**
+
+Experience the live dashboard with:
+- Real-time HTTP traffic monitoring
+- Request/response inspection
+- Outgoing HTTP request tracking
+- Interactive request replay & editing
+- All features running in a live ASP.NET Core application
+
+Try triggering some API calls and watch them appear instantly in the dashboard!
+
+---
+
 # 🚀 Quick Start
 
 Enable HttpInspector with **two lines**:

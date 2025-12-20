@@ -1,7 +1,54 @@
 using System.Net.Http;
+using AspNetCoreRateLimit;
 using HttpInspector.AspNetCore.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure rate limiting
+builder.Services.AddMemoryCache();
+builder.Services.Configure<IpRateLimitOptions>(options =>
+{
+    options.EnableEndpointRateLimiting = true;
+    options.StackBlockedRequests = false;
+    options.HttpStatusCode = 429;
+    options.RealIpHeader = "X-Real-IP";
+    options.ClientIdHeader = "X-ClientId";
+    options.GeneralRules = new List<RateLimitRule>
+    {
+        new RateLimitRule
+        {
+            Endpoint = "*",
+            Period = "1m",
+            Limit = 60
+        },
+        new RateLimitRule
+        {
+            Endpoint = "*",
+            Period = "10s",
+            Limit = 20
+        },
+        new RateLimitRule
+        {
+            Endpoint = "*",
+            Period = "1s",
+            Limit = 5
+        },
+        new RateLimitRule
+        {
+            Endpoint = "*/api/*",
+            Period = "1m",
+            Limit = 30
+        },
+        new RateLimitRule
+        {
+            Endpoint = "*/api/*",
+            Period = "10s",
+            Limit = 10
+        }
+    };
+});
+builder.Services.AddInMemoryRateLimiting();
+builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
 builder.Services.AddHttpInspector(options =>
 {
@@ -20,6 +67,8 @@ builder.Services.AddHttpClient("demo-api").ConfigurePrimaryHttpMessageHandler(()
 });
 
 var app = builder.Build();
+
+app.UseIpRateLimiting();
 
 app.MapGet("/", () => "HttpInspector sample ready.");
 app.MapGet("/api/time", () => new { Timestamp = DateTimeOffset.UtcNow, Greeting = "Hello" });
