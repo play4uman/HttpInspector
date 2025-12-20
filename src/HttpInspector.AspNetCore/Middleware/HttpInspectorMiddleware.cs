@@ -105,7 +105,7 @@ public sealed class HttpInspectorMiddleware
     {
         var request = context.Request;
         string? body = null;
-        if (options.LogBodies)
+        if (options.LogBodies && options.AllowBodyCapture)
         {
             request.EnableBuffering();
             body = await ReadStreamAsync(request.Body, options.MaxBodyLength, context.RequestAborted).ConfigureAwait(false);
@@ -134,7 +134,7 @@ public sealed class HttpInspectorMiddleware
     private async Task<HttpInspectorLogEntry> CaptureResponseAsync(HttpContext context, Stream responseBody, string correlationId, TimeSpan elapsed, HttpInspectorOptions options)
     {
         string? body = null;
-        if (options.LogBodies)
+        if (options.LogBodies && options.AllowBodyCapture)
         {
             body = await ReadStreamAsync(responseBody, options.MaxBodyLength, context.RequestAborted).ConfigureAwait(false);
         }
@@ -229,7 +229,7 @@ public sealed class HttpInspectorMiddleware
             var result = builder.ToString();
             if (truncated)
             {
-                result += " …(truncated)";
+                result += " ï¿½(truncated)";
             }
 
             return result;

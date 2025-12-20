@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Options;
 
 namespace HttpInspector.AspNetCore.Extensions;
 
@@ -23,22 +24,8 @@ public static class HttpInspectorServiceCollectionExtensions
             services.Configure(configure);
         }
 
-        services.PostConfigure<HttpInspectorOptions>(options =>
-        {
-            options.PathIncludePatterns ??= Array.Empty<string>();
-            options.PathExcludePatterns ??= Array.Empty<string>();
-            options.RedactedHeaders ??= Array.Empty<string>();
-            if (options.MaxBodyLength <= 0)
-            {
-                options.MaxBodyLength = 10_000;
-            }
-
-            options.Outgoing.RedactedHeaders ??= new[] { "Authorization", "Cookie" };
-            if (options.Outgoing.MaxBodyLength <= 0)
-            {
-                options.Outgoing.MaxBodyLength = 10_000;
-            }
-        });
+        // Register post-configuration that applies environment-based security defaults
+        services.AddSingleton<IPostConfigureOptions<HttpInspectorOptions>, HttpInspectorOptionsPostConfigure>();
 
         services.AddOptions<FileHttpInspectorStoreOptions>()
             .Configure<IHostEnvironment>((opts, env) =>
@@ -85,6 +72,9 @@ public static class HttpInspectorServiceCollectionExtensions
         services.TryAddSingleton<FileHttpInspectorStore>();
         services.TryAddSingleton<IHttpInspectorStore>(sp => sp.GetRequiredService<FileHttpInspectorStore>());
         services.TryAddSingleton<IHttpInspectorLogWriter>(sp => sp.GetRequiredService<FileHttpInspectorStore>());
+
+        // Startup audit logging
+        services.AddHostedService<HttpInspectorStartupLogger>();
 
         return services;
     }

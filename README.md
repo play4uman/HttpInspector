@@ -88,7 +88,118 @@ http://localhost:<port>/http-inspector
 
 ![Dashboard Preview](https://github.com/play4uman/HttpInspector/blob/master/docs/images/dashboard.png?raw=true)
 
-## Recommended “safe” configuration
+---
+
+# 🔒 Security & Safe Defaults
+
+## Environment-Based Configuration
+
+HttpInspector applies **safe-by-default** security settings based on your environment:
+
+### Development Environment
+- ✅ Enabled by default
+- ✅ Body capture allowed
+- ✅ Replay allowed
+- ❌ Authentication **not** required
+
+### Staging/Production Environments
+- ❌ **Disabled in Production** unless explicitly allowed via `AllowProduction = true`
+- ✅ Authentication **required** by default
+- ❌ Body capture **disabled** by default
+- ❌ Replay **disabled** by default
+
+## Production Usage (Advanced)
+
+To use HttpInspector in Production, you **must** explicitly enable it and configure security:
+
+```csharp
+builder.Services.AddHttpInspector(options =>
+{
+    // REQUIRED: Explicitly allow production usage
+    options.AllowProduction = true;
+    
+    // REQUIRED: Configure authentication
+    options.RequireAuthentication = true;
+    options.AuthorizationPolicy = "AdminOnly"; // Optional: use a specific policy
+    
+    // Optional: Restrict to specific IP ranges (CIDR notation)
+    options.AllowedNetworks = new[] 
+    { 
+        "10.0.0.0/8",           // Internal network
+        "192.168.1.0/24"        // VPN range
+    };
+    
+    // Recommended: Keep body capture disabled in production
+    options.AllowBodyCapture = false;
+    
+    // Recommended: Keep replay disabled in production
+    options.AllowReplay = false;
+});
+```
+
+## Authentication Options
+
+### Basic Authentication Requirement
+
+```csharp
+options.RequireAuthentication = true; // Applies default authentication
+```
+
+### Custom Authorization Policy
+
+```csharp
+// 1. Define your policy
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy =>
+        policy.RequireRole("Admin"));
+});
+
+// 2. Apply to HttpInspector
+builder.Services.AddHttpInspector(options =>
+{
+    options.RequireAuthentication = true;
+    options.AuthorizationPolicy = "AdminOnly";
+});
+```
+
+### Network Restrictions
+
+Restrict access to specific IP ranges using CIDR notation:
+
+```csharp
+options.AllowedNetworks = new[]
+{
+    "192.168.1.0/24",    // Local network
+    "10.0.0.0/8",        // Private network
+    "172.16.0.0/12",     // Another private range
+    "127.0.0.1"          // Localhost only
+};
+```
+
+## Audit Logging
+
+HttpInspector automatically logs security-relevant events:
+
+### Startup Audit Log
+At application startup, HttpInspector logs its configuration:
+- Environment name
+- Enabled/disabled status
+- Authentication requirements
+- Authorization policy
+- Body capture status
+- Replay status
+- Redaction rules count
+- Network restrictions status
+
+Example log output:
+```
+[Warning] HttpInspector is ENABLED | Environment: Production | BasePath: /http-inspector | 
+Auth: True | Policy: AdminOnly | BodyCapture: False | Replay: False | 
+Redaction: 4 rules | NetworkRestriction: enabled
+```
+
+## Recommended "safe" configuration
 
 Below is a template that is safer than “just enable it”. Adapt as needed.
 
@@ -96,6 +207,7 @@ Below is a template that is safer than “just enable it”. Adapt as needed.
 #if DEBUG
 app.UseHttpInspector(options =>
 {
+    options.AllowProduction = false;
     // UI access
     options.RequireAuthentication = true; // strongly recommended outside local dev
 

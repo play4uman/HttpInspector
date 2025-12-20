@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Net;
 using System.Text.Json;
 using HttpInspector.AspNetCore.Internal;
 using HttpInspector.AspNetCore.Options;
@@ -26,9 +27,16 @@ internal static class HttpInspectorEndpointRouteBuilderExtensions
         var streamEndpoint = endpoints.MapGet(streamPath, async Task<IResult> (
             DateTimeOffset? since,
             DateTimeOffset? until,
+            HttpContext context,
             IHttpInspectorStore store,
             CancellationToken cancellationToken) =>
         {
+            // Network security check
+            if (!CheckNetworkAccess(context, options))
+            {
+                return Results.StatusCode(403);
+            }
+
             var payload = new List<JsonElement>();
             await foreach (var entry in store.GetEventsAsync(since, until, cancellationToken).ConfigureAwait(false))
             {
@@ -40,20 +48,57 @@ internal static class HttpInspectorEndpointRouteBuilderExtensions
 
         ApplySecurity(streamEndpoint, options);
 
-        var uiEndpoint = endpoints.MapGet(basePath, (HttpInspectorUiRenderer renderer) => renderer.Render());
+        var uiEndpoint = endpoints.MapGet(basePath, (HttpContext context, HttpInspectorUiRenderer renderer) =>
+        {
+            // Network security check
+            if (!CheckNetworkAccess(context, options))
+            {
+                return Results.StatusCode(403);
+            }
+
+            return renderer.Render();
+        });
         ApplySecurity(uiEndpoint, options);
 
         var assetsEndpoint = endpoints.MapGet($"{basePath}/assets/{{**assetPath}}", (
             string assetPath,
-            HttpInspectorAssetProvider assetProvider) => assetProvider.Render(assetPath));
+            HttpContext context,
+            HttpInspectorAssetProvider assetProvider) =>
+        {
+            // Network security check
+            if (!CheckNetworkAccess(context, options))
+            {
+                return Results.StatusCode(403);
+            }
+
+            return assetProvider.Render(assetPath);
+        });
         ApplySecurity(assetsEndpoint, options);
+    }
+
+    private static bool CheckNetworkAccess(HttpContext context, HttpInspectorOptions options)
+    {
+        if (options.AllowedNetworks == null || options.AllowedNetworks.Length == 0)
+        {
+            return true;
+        }
+
+        var remoteIp = context.Connection.RemoteIpAddress;
+        return NetworkSecurityHelper.IsIpAddressAllowed(remoteIp, options.AllowedNetworks);
     }
 
     private static void ApplySecurity(RouteHandlerBuilder builder, HttpInspectorOptions options)
     {
         if (options.RequireAuthentication)
         {
-            builder.RequireAuthorization();
+            if (!string.IsNullOrWhiteSpace(options.AuthorizationPolicy))
+            {
+                builder.RequireAuthorization(options.AuthorizationPolicy);
+            }
+            else
+            {
+                builder.RequireAuthorization();
+            }
         }
         else
         {
