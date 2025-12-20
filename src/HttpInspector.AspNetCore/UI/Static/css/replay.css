@@ -406,8 +406,8 @@
     color: rgba(226, 232, 240, 0.85);
 }
 
-.replay-editor .editor-field input,
-.replay-editor .editor-field select,
+.replay-editor input,
+.replay-editor select,
 .header-input,
 .replay-body-input {
     background: rgba(15, 23, 42, 0.85);
@@ -422,6 +422,7 @@
 
 .header-input {
     padding: 0.45rem;
+    margin-bottom: 0.5rem;
 }
 
 .replay-editor .editor-field select {
@@ -449,8 +450,13 @@
     color: rgba(226, 232, 240, 0.6);
 }
 
+.replay-editor-content-type,
 .replay-editor-method {
     padding: 0.5rem;
+}
+
+.replay-editor-content-type {
+    margin-bottom: 0.5rem;
 }
 
 .replay-editor-url {
@@ -478,6 +484,7 @@
     font-size: 0.72rem;
     padding: 0.25rem 0.65rem;
     cursor: pointer;
+    margin-bottom: 0.5rem;
 }
 
 .replay-editor-add:hover {

@@ -186,6 +186,44 @@ export class ReplayCoordinator {
                 this.switchNewRequestTab(entryId, tabName);
             });
         });
+        
+        // Body type selector
+        container.querySelectorAll('[data-body-type-selector]').forEach(selector => {
+            selector.addEventListener('change', (event) => {
+                const entryId = selector.getAttribute('data-body-type-selector');
+                const newType = event.target.value;
+                this.handleBodyTypeChange(entryId, newType, container);
+            });
+        });
+        
+        // Add form field button
+        container.querySelectorAll('[data-add-form-field]').forEach(button => {
+            if (button.dataset.addFormFieldWired === 'true') {
+                return;
+            }
+            button.dataset.addFormFieldWired = 'true';
+            button.addEventListener('click', () => {
+                const entryId = button.getAttribute('data-add-form-field');
+                this.addFormFieldRow(entryId, container);
+            });
+        });
+        
+        // Form field editor (remove button)
+        container.querySelectorAll('[data-form-field-editor]').forEach(editorContainer => {
+            editorContainer.addEventListener('click', event => {
+                const target = event.target;
+                if (!(target instanceof HTMLElement)) {
+                    return;
+                }
+                if (!target.matches('[data-remove-form-field]')) {
+                    return;
+                }
+                const row = target.closest('[data-form-field-row]');
+                row?.remove();
+                const entryId = editorContainer.getAttribute('data-form-field-editor');
+                this.updateEmptyFormFields(entryId, container);
+            });
+        });
     }
 
     switchNewRequestTab(entryId, tabName) {
@@ -259,6 +297,7 @@ export class ReplayCoordinator {
         const methodField = form.querySelector('[data-replay-field="method"]');
         const urlField = form.querySelector('[data-replay-field="url"]');
         const bodyField = form.querySelector('[data-replay-field="body"]');
+        const bodyTypeSelector = form.querySelector(`[data-body-type-selector="${entryId}"]`);
         const method = (methodField?.value || 'GET').toUpperCase();
         const enteredUrl = urlField?.value?.trim();
         
@@ -271,7 +310,26 @@ export class ReplayCoordinator {
             throw new Error('Target URL is invalid.');
         }
         const headers = this.readHeadersFromNewRequestEditor(entryId);
-        const body = bodyField?.value ?? '';
+        
+        // Determine body based on body type
+        let body = '';
+        const bodyType = bodyTypeSelector?.value || 'raw';
+        
+        if (bodyType === 'form-urlencoded') {
+            const fields = this.readFormFieldsFromEditor(entryId, this.newRequestModalContent);
+            const params = new URLSearchParams();
+            fields.forEach(([key, value]) => {
+                if (key) params.append(key, value);
+            });
+            body = params.toString();
+            // Set content-type header if not already set
+            if (!this.getHeaderValue(headers, 'content-type')) {
+                headers['Content-Type'] = 'application/x-www-form-urlencoded';
+            }
+        } else {
+            body = bodyField?.value ?? '';
+        }
+        
         return {
             method,
             path: resolved.pathname,
@@ -395,6 +453,12 @@ export class ReplayCoordinator {
         const headerRows = this.renderHeaderEditorRows(entryId, request.headers);
         const showEmptyHeaders = headerRows.trim().length === 0;
         const emptyAttr = showEmptyHeaders ? '' : ' hidden';
+        
+        // Determine initial body type based on content-type header or body content
+        const contentType = this.getHeaderValue(request.headers, 'content-type');
+        const isFormUrlEncoded = contentType?.includes('application/x-www-form-urlencoded') ?? false;
+        const initialBodyType = isFormUrlEncoded ? 'form-urlencoded' : 'raw';
+        
         return `
             <div class="replay-editor-panel" data-replay-form="${entryId}">
                 <div class="replay-request-line">
@@ -419,8 +483,16 @@ export class ReplayCoordinator {
                         <p class="muted header-empty" data-headers-empty="${entryId}"${emptyAttr}>No headers captured.</p>
                     </div>
                     <div class="section-card request-card replay-editor-card">
-                        <header>Body</header>
-                        <textarea id="${entryId}-replay-request-body" class="replay-body-input" data-replay-field="body" spellcheck="false">${escapeHtml(bodyValue)}</textarea>
+                        <header>
+                            Body
+                            <select class="replay-editor-content-type" data-body-type-selector="${entryId}">
+                                <option value="raw" ${initialBodyType === 'raw' ? 'selected' : ''}>RAW</option>
+                                <option value="form-urlencoded" ${initialBodyType === 'form-urlencoded' ? 'selected' : ''}>FORM URL ENCODED</option>
+                            </select>
+                        </header>
+                        <div class="body-editor-container" data-body-container="${entryId}">
+                            ${this.renderBodyEditor(entryId, initialBodyType, bodyValue, request.headers)}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -436,6 +508,68 @@ export class ReplayCoordinator {
             .filter(([, value]) => value != null)
             .map(([key, value]) => this.renderHeaderEditorRow(entryId, key, value))
             .join('');
+    }
+
+    renderBodyEditor(entryId, bodyType, bodyValue, headers) {
+        if (bodyType === 'form-urlencoded') {
+            const formFields = this.parseFormUrlEncoded(bodyValue);
+            return this.renderFormUrlEncodedEditor(entryId, formFields);
+        } else {
+            return `<textarea id="${entryId}-replay-request-body" class="replay-body-input" data-replay-field="body" spellcheck="false">${escapeHtml(bodyValue)}</textarea>`;
+        }
+    }
+
+    renderFormUrlEncodedEditor(entryId, fields) {
+        const fieldRows = fields.map(([key, value]) => this.renderFormFieldRow(entryId, key, value)).join('');
+        const emptyAttr = fields.length === 0 ? '' : ' hidden';
+        return `
+            <div class="form-field-editor" data-form-field-editor="${entryId}">
+                ${fieldRows}
+            </div>
+            <p class="muted form-fields-empty" data-form-fields-empty="${entryId}"${emptyAttr}>No form fields.</p>
+            <button type="button" class="replay-editor-add" data-add-form-field="${entryId}">Add field</button>
+        `;
+    }
+
+    renderFormFieldRow(entryId, key = '', value = '') {
+        const safeKey = this.escapeForAttribute(key);
+        const safeValue = this.escapeForAttribute(value);
+        return `
+            <div class="header-editor-row" data-form-field-row>
+                <input type="text" class="header-input" placeholder="Field name" value="${safeKey}" data-form-field-name />
+                <input type="text" class="header-input" placeholder="Field value" value="${safeValue}" data-form-field-value />
+                <button type="button" class="replay-remove-header" title="Remove field" data-remove-form-field>x</button>
+            </div>
+        `;
+    }
+
+    parseFormUrlEncoded(body) {
+        if (!body || typeof body !== 'string') {
+            return [];
+        }
+        const trimmed = body.trim();
+        if (!trimmed) {
+            return [];
+        }
+        try {
+            const params = new URLSearchParams(trimmed);
+            return Array.from(params.entries());
+        } catch {
+            return [];
+        }
+    }
+
+    getHeaderValue(headers, name) {
+        if (!headers || !name) {
+            return null;
+        }
+        const lowerName = name.toLowerCase();
+        for (const [key, value] of Object.entries(headers)) {
+            if (key.toLowerCase() === lowerName) {
+                return value;
+            }
+        }
+        return null;
     }
 
     renderHeaderEditorRow(entryId, key, value) {
@@ -564,6 +698,52 @@ export class ReplayCoordinator {
                     }, 100);
                 });
             });
+            
+            // Body type selector
+            container.querySelectorAll('[data-body-type-selector]').forEach(selector => {
+                if (selector.dataset.bodyTypeSelectorWired === 'true') {
+                    return;
+                }
+                selector.dataset.bodyTypeSelectorWired = 'true';
+                selector.addEventListener('change', (event) => {
+                    const entryId = selector.getAttribute('data-body-type-selector');
+                    const newType = event.target.value;
+                    this.handleBodyTypeChange(entryId, newType, container);
+                });
+            });
+            
+            // Add form field button
+            container.querySelectorAll('[data-add-form-field]').forEach(button => {
+                if (button.dataset.addFormFieldWired === 'true') {
+                    return;
+                }
+                button.dataset.addFormFieldWired = 'true';
+                button.addEventListener('click', () => {
+                    const entryId = button.getAttribute('data-add-form-field');
+                    this.addFormFieldRow(entryId, container);
+                });
+            });
+            
+            // Form field editor (remove button)
+            container.querySelectorAll('[data-form-field-editor]').forEach(editorContainer => {
+                if (editorContainer.dataset.formFieldEditorWired === 'true') {
+                    return;
+                }
+                editorContainer.dataset.formFieldEditorWired = 'true';
+                editorContainer.addEventListener('click', event => {
+                    const target = event.target;
+                    if (!(target instanceof HTMLElement)) {
+                        return;
+                    }
+                    if (!target.matches('[data-remove-form-field]')) {
+                        return;
+                    }
+                    const row = target.closest('[data-form-field-row]');
+                    row?.remove();
+                    const entryId = editorContainer.getAttribute('data-form-field-editor');
+                    this.updateEmptyFormFields(entryId, container);
+                });
+            });
         });
     }
     
@@ -582,6 +762,122 @@ export class ReplayCoordinator {
         container.querySelectorAll(`[data-panel-entry="${entryId}"]`).forEach(panel => {
             panel.classList.toggle('is-active', panel.getAttribute('data-replay-modal-panel') === tabName);
         });
+    }
+
+    handleBodyTypeChange(entryId, newType, container) {
+        if (!entryId || !container) {
+            return;
+        }
+        
+        const bodyContainer = container.querySelector(`[data-body-container="${entryId}"]`);
+        if (!bodyContainer) {
+            return;
+        }
+        
+        // Get current body value before switching
+        let currentValue = '';
+        if (newType === 'form-urlencoded') {
+            // Switching from raw to form-urlencoded
+            const textarea = bodyContainer.querySelector('[data-replay-field="body"]');
+            currentValue = textarea?.value || '';
+            const fields = this.parseFormUrlEncoded(currentValue);
+            bodyContainer.innerHTML = this.renderFormUrlEncodedEditor(entryId, fields);
+        } else {
+            // Switching from form-urlencoded to raw
+            const fields = this.readFormFieldsFromEditor(entryId, container);
+            const params = new URLSearchParams();
+            fields.forEach(([key, value]) => {
+                if (key) params.append(key, value);
+            });
+            currentValue = params.toString();
+            bodyContainer.innerHTML = `<textarea id="${entryId}-replay-request-body" class="replay-body-input" data-replay-field="body" spellcheck="false">${escapeHtml(currentValue)}</textarea>`;
+        }
+        
+        // Re-bind interactions after DOM update
+        // Check if this is from new request modal or replay modal
+        if (container === this.newRequestModalContent) {
+            this.bindNewRequestInteractions(entryId);
+        } else {
+            this.bindInteractions();
+        }
+    }
+
+    addFormFieldRow(entryId, container, name = '', value = '') {
+        if (!entryId || !container) {
+            return;
+        }
+        const editorContainer = container.querySelector(`[data-form-field-editor="${entryId}"]`);
+        if (!editorContainer) {
+            return;
+        }
+        
+        const row = document.createElement('div');
+        row.className = 'header-editor-row';
+        row.dataset.formFieldRow = 'true';
+
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.className = 'header-input';
+        nameInput.placeholder = 'Field name';
+        nameInput.dataset.formFieldName = 'true';
+        nameInput.value = name;
+
+        const valueInput = document.createElement('input');
+        valueInput.type = 'text';
+        valueInput.className = 'header-input';
+        valueInput.placeholder = 'Field value';
+        valueInput.dataset.formFieldValue = 'true';
+        valueInput.value = value;
+
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'replay-remove-header';
+        removeButton.dataset.removeFormField = 'true';
+        removeButton.textContent = 'x';
+
+        row.appendChild(nameInput);
+        row.appendChild(valueInput);
+        row.appendChild(removeButton);
+        editorContainer.appendChild(row);
+        this.updateEmptyFormFields(entryId, container);
+    }
+
+    updateEmptyFormFields(entryId, container) {
+        if (!entryId || !container) {
+            return;
+        }
+        const editorContainer = container.querySelector(`[data-form-field-editor="${entryId}"]`);
+        const emptyState = container.querySelector(`[data-form-fields-empty="${entryId}"]`);
+        if (!editorContainer || !emptyState) {
+            return;
+        }
+        const hasRows = editorContainer.querySelector('[data-form-field-row]');
+        if (hasRows) {
+            emptyState.setAttribute('hidden', 'true');
+        } else {
+            emptyState.removeAttribute('hidden');
+        }
+    }
+
+    readFormFieldsFromEditor(entryId, container) {
+        if (!entryId || !container) {
+            return [];
+        }
+        const editorContainer = container.querySelector(`[data-form-field-editor="${entryId}"]`);
+        if (!editorContainer) {
+            return [];
+        }
+        const fields = [];
+        editorContainer.querySelectorAll('[data-form-field-row]').forEach(row => {
+            const nameInput = row.querySelector('[data-form-field-name]');
+            const valueInput = row.querySelector('[data-form-field-value]');
+            const key = nameInput?.value?.trim();
+            if (!key) {
+                return;
+            }
+            fields.push([key, valueInput?.value ?? '']);
+        });
+        return fields;
     }
 
     handleReplayToggle(entryId, button) {
@@ -729,6 +1025,7 @@ export class ReplayCoordinator {
         const methodField = form.querySelector('[data-replay-field="method"]');
         const urlField = form.querySelector('[data-replay-field="url"]');
         const bodyField = form.querySelector('[data-replay-field="body"]');
+        const bodyTypeSelector = form.querySelector(`[data-body-type-selector="${entryId}"]`);
         const method = (methodField?.value || originalRequest.method || 'GET').toUpperCase();
         const enteredUrl = urlField?.value?.trim();
         const fallbackUrl = this.buildRequestUrl(originalRequest);
@@ -737,7 +1034,27 @@ export class ReplayCoordinator {
             throw new Error('Target URL is invalid.');
         }
         const headers = this.readHeadersFromEditor(entryId, originalRequest.headers);
-        const body = bodyField?.value ?? originalRequest.body ?? '';
+        
+        // Determine body based on body type
+        let body = '';
+        const bodyType = bodyTypeSelector?.value || 'raw';
+        const container = this.modalContent || this.listElement;
+        
+        if (bodyType === 'form-urlencoded') {
+            const fields = this.readFormFieldsFromEditor(entryId, container);
+            const params = new URLSearchParams();
+            fields.forEach(([key, value]) => {
+                if (key) params.append(key, value);
+            });
+            body = params.toString();
+            // Set content-type header if not already set
+            if (!this.getHeaderValue(headers, 'content-type')) {
+                headers['Content-Type'] = 'application/x-www-form-urlencoded';
+            }
+        } else {
+            body = bodyField?.value ?? originalRequest.body ?? '';
+        }
+        
         return {
             ...originalRequest,
             method,
