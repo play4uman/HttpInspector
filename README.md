@@ -3,27 +3,39 @@
 [![NuGet](https://img.shields.io/nuget/v/HttpInspector.AspNetCore.svg?style=flat-square)](https://www.nuget.org/packages/HttpInspector.AspNetCore/)
 [![Publish NuGet](https://github.com/play4uman/HttpInspector/actions/workflows/publish-nuget.yml/badge.svg)](https://github.com/play4uman/HttpInspector/actions)
 
-## A Zero-Config Live HTTP Inspector for ASP.NET Core
+**HttpInspector** is a **zero-config in-process HTTP inspection dashboard** for **ASP.NET Core**.
 
-**HttpInspector.AspNetCore** provides a built-in, real-time view of incoming and outgoing HTTP traffic inside any ASP.NET Core application.  
-It captures the complete request lifecycle and exposes it through a polished, embedded dashboard ideal for development, testing, QA, CI pipelines, and microservice debugging.
+It captures **incoming requests**, **responses**, and (optionally) **outgoing `HttpClient` calls** and exposes a **web UI** where you can search, filter, inspect payloads, and **replay** requests.
+
+> Practical goal: give you the “Fiddler/DevTools network tab” experience *inside* your ASP.NET Core app — ideal for local dev, staging, and controlled debugging environments.
 
 It is **not** a replacement for ELK, Seq, or Application Insights.  
 Instead, it fills the gap between “no visibility at all” and “full observability stack,” and does so with almost no setup.
 
 ---
 
-# 💡 Philosophy
+## Why this exists
 
-HttpInspector focuses on being:
+HttpInspector fills the space between:
 
-- **Fast to enable**  
-- **Effortless to use**  
-- **Powerful for debugging**  
-- **Zero-infrastructure**  
-- **In-app and self-contained**  
+- **Plain logging** (hard to explore, no timeline, no replay)
+- **External proxies** (MITM certificates, awkward in containers/Kubernetes, can’t see server-side pipeline details)
+- **Full observability stacks** (powerful, but heavy for “I just need to see what this endpoint did right now”)
 
-It provides immediate clarity into what the API is doing **right now**, especially in complex request chains — all without the overhead of full observability stacks.
+Use it when you want **fast visibility** and **interactive debugging**, without spinning up an entire platform.
+
+---
+
+# Features
+
+- 🕵️ **Inspect incoming HTTP** requests and responses (headers, status, body)
+- 🌍 **Track outgoing HTTP** (`HttpClient`) and correlate it to the triggering request (optional)
+- 🔁 **Replay requests** from the UI (edit method/headers/body) *(optional; dangerous in prod)*
+- 📋 **Copy-as** `curl`, PowerShell, raw HTTP
+- ⏱ **Timeline filtering** by time range, route, method, status, duration
+- 🧹 **Retention controls** (max events, max age, max bytes, rotation)
+- 🧹 **Redaction** for sensitive headers (and optional body redaction rules)
+- 🧩 **Pluggable storage** (file store by default; implement your own)
 
 ---
 
@@ -64,6 +76,41 @@ app.UseHttpInspector();
 app.Run();
 ```
 
+## Recommended “safe” configuration
+
+Below is a template that is safer than “just enable it”. Adapt as needed.
+
+```csharp
+#if DEBUG
+app.UseHttpInspector(options =>
+{
+    // UI access
+    options.RequireAuthentication = true; // strongly recommended outside local dev
+
+    // Capture settings
+    options.EnableOutgoingHttpTracking = true;
+    options.LogRequestBody = true;
+    options.LogResponseBody = true;
+
+    // Limits
+    options.MaxBodySizeBytes = 64_000;          // protect memory & disk
+    options.MaxEventAge = TimeSpan.FromHours(6); // retention cap
+    options.MaxEvents = 10_000;                 // retention cap
+
+    // Redaction (minimum set)
+    options.RedactHeaders.Add("Authorization");
+    options.RedactHeaders.Add("Cookie");
+    options.RedactHeaders.Add("Set-Cookie");
+
+    // Route inclusion/exclusion examples (optional)
+    // options.ExcludePathPrefixes.Add("/health");
+    // options.ExcludePathPrefixes.Add("/metrics");
+});
+#endif
+```
+
+> **Do not** run with body logging + no auth on a publicly reachable environment.
+
 ---
 
 # 🖼 Dashboard Preview
@@ -81,7 +128,7 @@ app.Run();
 
 ---
 
-# ✨ Features
+# ✨ Feature Outline
 
 ## 🎛 Real-time visual dashboard
 
