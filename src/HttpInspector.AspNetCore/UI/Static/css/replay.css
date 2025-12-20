@@ -146,6 +146,22 @@
     color: var(--accent);
 }
 
+.chip-grid .new-request-btn:disabled,
+.detail-tab.replay-open-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: rgba(255, 255, 255, 0.02);
+    border-color: var(--border-color);
+    color: var(--text-muted);
+}
+
+.chip-grid .new-request-btn:disabled:hover,
+.detail-tab.replay-open-btn:disabled:hover {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: var(--border-color);
+    color: var(--text-muted);
+}
+
 .chip-grid .new-request-btn,
 .detail-tab.replay-open-btn .icon-send {
     font-size: 0.85em;

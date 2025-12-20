@@ -3,6 +3,10 @@ import { renderHeadersList, renderBodyBlock } from './templates.js';
 import { renderOutgoingSection } from '../outgoing/outgoing-renderer.js';
 
 export function renderLogCard(pair, { replay, outgoingStore }) {
+    const config = window.HttpInspectorConfig || {};
+    const allowReplay = config.allowReplay !== false;
+    const enableOutgoingTracking = config.enableOutgoingTracking !== false;
+    
     const request = pair.request;
     const response = pair.response;
     const path = `${request?.path ?? ''}${request?.queryString ?? ''}` || '/';
@@ -17,6 +21,10 @@ export function renderLogCard(pair, { replay, outgoingStore }) {
     const hasOutgoing = outgoingData.count > 0;
     const outgoingBadge = hasOutgoing ? ` <span class="tab-badge">${outgoingData.count}</span>` : '';
     
+    // Outgoing tab styling based on feature state
+    const outgoingTabClass = !enableOutgoingTracking ? 'detail-tab feature-disabled' : 'detail-tab';
+    const outgoingTabTitle = !enableOutgoingTracking ? 'Outgoing tracking is disabled' : '';
+    
     const replayButton = request ? `
         <button type="button" class="detail-tab replay-open-btn" data-replay-toggle="${pair.id}">
             <span class="icon-send">➤</span> Replay
@@ -28,7 +36,7 @@ export function renderLogCard(pair, { replay, outgoingStore }) {
             <div class="detail-tabs" role="tablist">
                 <button type="button" class="detail-tab is-active" data-detail-tab="request">Request</button>
                 <button type="button" class="detail-tab" data-detail-tab="response">Response</button>
-                <button type="button" class="detail-tab" data-detail-tab="outgoing">Outgoing${outgoingBadge}</button>
+                <button type="button" class="${outgoingTabClass}" data-detail-tab="outgoing" title="${outgoingTabTitle}">Outgoing${outgoingBadge}</button>
                 ${replayButton}
             </div>
             <section class="detail-panel-section is-active" data-tab-panel="request">
@@ -75,13 +83,25 @@ export function renderResponseHeader(status, duration) {
 }
 
 export function renderIoTabs(prefix, headers, body) {
+    const config = window.HttpInspectorConfig || {};
+    const allowBodyCapture = config.allowBodyCapture !== false;
+    
     const bodyId = `${prefix}-body`;
     const headersMarkup = renderHeadersList(headers);
     const bodyMarkup = renderBodyBlock(bodyId, body);
+    
+    // Body tab styling based on feature state
+    const bodyTabClass = !allowBodyCapture && (!body || body === '[empty]' || body === '') 
+        ? 'io-tab feature-disabled' 
+        : 'io-tab';
+    const bodyTabTitle = !allowBodyCapture && (!body || body === '[empty]' || body === '')
+        ? 'Body capture is disabled by configuration. Enable with .Configure(o => o.AllowBodyCapture = true)'
+        : '';
+    
     return `
         <div class="io-subtabs" data-io-tabs="${prefix}">
             <button type="button" class="io-tab is-active" data-io-tab="headers">Headers</button>
-            <button type="button" class="io-tab" data-io-tab="body">Body</button>
+            <button type="button" class="${bodyTabClass}" data-io-tab="body" title="${bodyTabTitle}">Body</button>
         </div>
         <div class="io-panel is-active" data-io-panel="headers">
             ${headersMarkup}
@@ -100,15 +120,29 @@ function formatDuration(durationMs) {
 }
 
 function renderOutgoingHeader(hasOutgoing, count) {
-    const summary = hasOutgoing 
-        ? `${count} outgoing ${count === 1 ? 'request' : 'requests'} triggered`
-        : 'No outgoing requests';
+    const config = window.HttpInspectorConfig || {};
+    const enableOutgoingTracking = config.enableOutgoingTracking !== false;
+    
+    let summary;
+    if (!enableOutgoingTracking) {
+        summary = '📡 Outgoing tracking is disabled';
+    } else if (hasOutgoing) {
+        summary = `${count} outgoing ${count === 1 ? 'request' : 'requests'} triggered`;
+    } else {
+        summary = 'No outgoing requests';
+    }
+    
+    const configHint = !enableOutgoingTracking 
+        ? '<p class="muted-small" style="margin-top: 8px;">Enable with <code>.Configure(o => o.EnableOutgoingTracking = true)</code></p>'
+        : '';
+    
     return `
         <div class="detail-header">
             <strong>Outgoing Requests</strong>
             <div class="meta-row">
                 <span>${escapeHtml(summary)}</span>
             </div>
+            ${configHint}
         </div>
     `;
 }

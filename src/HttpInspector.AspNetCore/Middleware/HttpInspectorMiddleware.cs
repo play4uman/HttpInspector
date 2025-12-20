@@ -113,7 +113,7 @@ public sealed class HttpInspectorMiddleware
         bool? isTruncated = null;
         bool? isRedacted = null;
 
-        if (options.LogBodies && options.AllowBodyCapture)
+        if (options.AllowBodyCapture)
         {
             var contentType = request.ContentType;
             if (_redactionService.ShouldCaptureBody(contentType))
@@ -180,7 +180,7 @@ public sealed class HttpInspectorMiddleware
         bool? isTruncated = null;
         bool? isRedacted = null;
 
-        if (options.LogBodies && options.AllowBodyCapture)
+        if (options.AllowBodyCapture)
         {
             var contentType = context.Response.ContentType;
             if (_redactionService.ShouldCaptureBody(contentType))

@@ -29,9 +29,10 @@ export class ReplayCoordinator {
         this.closeNewRequestModalBtn = document.getElementById('closeNewRequestModal');
         this.newRequestButton = document.getElementById('newRequestButton');
         
-        // Hide new request button if replay is disabled
+        // Disable new request button if replay is disabled
         if (this.newRequestButton && !this.allowReplay) {
-            this.newRequestButton.style.display = 'none';
+            this.newRequestButton.disabled = true;
+            this.newRequestButton.title = 'Replay is disabled by configuration. Enable with .Configure(o => o.AllowReplay = true)';
         }
         
         this.setupModalHandlers();
@@ -628,7 +629,7 @@ export class ReplayCoordinator {
                 // Disable button if replay is not allowed
                 if (!this.allowReplay) {
                     button.disabled = true;
-                    button.title = 'Replay is disabled in this environment';
+                    button.title = 'Replay is disabled by configuration. Enable with .Configure(o => o.AllowReplay = true)';
                     return;
                 }
                 

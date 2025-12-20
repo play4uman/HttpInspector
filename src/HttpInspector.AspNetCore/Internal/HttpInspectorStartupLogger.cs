@@ -39,7 +39,7 @@ internal sealed class HttpInspectorStartupLogger : IHostedService
             _options.BasePath,
             _options.RequireAuthentication,
             _options.AuthorizationPolicy ?? "none",
-            _options.AllowBodyCapture && _options.LogBodies,
+            _options.AllowBodyCapture,
             _options.AllowReplay,
             _options.RedactedHeaders?.Length ?? 0,
             _options.AllowedNetworks?.Length > 0 ? "enabled" : "disabled");

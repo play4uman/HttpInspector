@@ -827,6 +827,28 @@ body.theme-light .theme-toggle-handle {
     border-color: var(--accent);
     color: #041011;
 }
+
+.detail-tab.feature-disabled,
+.io-tab.feature-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    position: relative;
+}
+
+.detail-tab.feature-disabled:hover,
+.io-tab.feature-disabled:hover {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: var(--border-color);
+    color: var(--text-muted);
+}
+
+.detail-tab.feature-disabled::after,
+.io-tab.feature-disabled::after {
+    content: '🔒';
+    margin-left: 0.35rem;
+    font-size: 10px;
+}
+
 .detail-panel-section {
     display: none;
     flex: 1 1 auto;
@@ -848,6 +870,21 @@ body.theme-light .theme-toggle-handle {
 
 .detail-header strong {
     font-size: 16px;
+}
+
+.detail-header .muted-small {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.detail-header .muted-small code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    font-size: 11px;
 }
 
 .meta-row {
@@ -895,6 +932,35 @@ body.theme-light .theme-toggle-handle {
     position: relative;
 }
 
+.body-disabled-notice {
+    padding: 2rem 1rem;
+    text-align: center;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-medium);
+}
+
+.body-disabled-notice .muted {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.body-disabled-notice .muted-small {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.body-disabled-notice code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    font-size: 11px;
+}
+
 .body-copy-btn {
     position: absolute;
     top: 0.4rem;
@@ -905,6 +971,17 @@ body.theme-light .theme-toggle-handle {
     border-radius: 999px;
     padding: 0.1rem 0.6rem;
     cursor: pointer;
+    transition: opacity 140ms ease, background 140ms ease;
+}
+
+.body-copy-btn:hover:not(.disabled) {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.body-copy-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 .help-modal {

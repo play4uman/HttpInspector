@@ -12,7 +12,7 @@ public class HttpInspectorOptionsTests
         var options = new HttpInspectorOptions();
 
         options.Enabled.Should().BeTrue();
-        options.LogBodies.Should().BeTrue();
+        options.AllowBodyCapture.Should().BeTrue();
         options.MaxBodyLength.Should().Be(10_000);
         options.BasePath.Should().Be("/http-inspector");
         options.RequireAuthentication.Should().BeFalse();

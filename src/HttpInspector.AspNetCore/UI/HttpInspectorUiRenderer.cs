@@ -21,12 +21,17 @@ internal sealed class HttpInspectorUiRenderer
 
     public IResult Render()
     {
-        var basePath = HttpInspectorRouteHelper.NormalizeBasePath(_options.Value.BasePath);
-        var allowReplay = _options.Value.AllowReplay ? "true" : "false";
+        var opts = _options.Value;
+        var basePath = HttpInspectorRouteHelper.NormalizeBasePath(opts.BasePath);
+        var allowReplay = opts.AllowReplay ? "true" : "false";
+        var allowBodyCapture = opts.AllowBodyCapture ? "true" : "false";
+        var enableOutgoingTracking = opts.EnableOutgoingTracking ? "true" : "false";
         
         var populated = _template.Value
             .Replace("__HTTP_INSPECTOR_BASE__", basePath, StringComparison.Ordinal)
-            .Replace("__ALLOW_REPLAY__", allowReplay, StringComparison.Ordinal);
+            .Replace("__ALLOW_REPLAY__", allowReplay, StringComparison.Ordinal)
+            .Replace("__ALLOW_BODY_CAPTURE__", allowBodyCapture, StringComparison.Ordinal)
+            .Replace("__ENABLE_OUTGOING_TRACKING__", enableOutgoingTracking, StringComparison.Ordinal);
         
         return Results.Content(populated, "text/html; charset=utf-8");
     }

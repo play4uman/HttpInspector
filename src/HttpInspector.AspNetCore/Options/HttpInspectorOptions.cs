@@ -12,8 +12,6 @@ public class HttpInspectorOptions
     /// </summary>
     public bool AllowBodyCapture { get; set; } = true;
 
-    public bool LogBodies { get; set; } = true;
-
     public bool EnableOutgoingTracking { get; set; } = true;
 
     public int MaxBodyLength { get; set; } = 10_000;

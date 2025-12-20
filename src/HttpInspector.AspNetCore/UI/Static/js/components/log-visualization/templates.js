@@ -16,11 +16,33 @@ export function renderHeadersList(headers) {
 }
 
 export function renderBodyBlock(bodyId, body) {
+    const config = window.HttpInspectorConfig || {};
+    const allowBodyCapture = config.allowBodyCapture !== false;
+    
     const pretty = formatBodyText(body ?? '');
     const encoded = encodeBody(body ?? '');
+    
+    // Show helpful message if body capture is disabled
+    if (!allowBodyCapture && (!body || body === '[empty]' || body === '')) {
+        return `
+            <div class="body-wrapper">
+                <div class="body-disabled-notice">
+                    <p class="muted">📋 Body capture is disabled</p>
+                    <p class="muted-small">Enable with <code>.Configure(o => o.AllowBodyCapture = true)</code></p>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Disable copy button if no body content
+    const hasBody = body && body !== '[empty]' && body !== '';
+    const copyBtnClass = hasBody ? 'body-copy-btn' : 'body-copy-btn disabled';
+    const copyBtnDisabled = hasBody ? '' : ' disabled';
+    const copyBtnTitle = hasBody ? 'Copy body content' : 'No body content to copy';
+    
     return `
         <div class="body-wrapper">
-            <button type="button" class="body-copy-btn" data-copy-content="${encoded}">Copy</button>
+            <button type="button" class="${copyBtnClass}" data-copy-content="${encoded}"${copyBtnDisabled} title="${copyBtnTitle}">Copy</button>
             <pre id="${bodyId}" class="body-block">${escapeHtml(pretty)}</pre>
         </div>
     `;

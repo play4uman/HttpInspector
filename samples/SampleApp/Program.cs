@@ -54,7 +54,6 @@ builder.Services.AddHttpInspector(options =>
 {
     // Uncomment to change the default UI path
     //options.BasePath = "/http-inspector";
-    options.LogBodies = true;
     options.EnableOutgoingTracking = true;
 
     options.Outgoing.IncludeUrlQuery = true;
