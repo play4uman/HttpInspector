@@ -48,7 +48,7 @@ export function describeFromSelection(timeRange) {
 export function describeToSelection(timeRange) {
     const to = timeRange.to;
     if (to.mode === 'now') {
-        return 'Now (live)';
+        return 'Now (actively streaming)';
     }
     if (to.mode === 'relative') {
         return 'Now - ' + describeRelative(to.relative);

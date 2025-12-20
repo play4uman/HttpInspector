@@ -1,0 +1,258 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="__HTTP_INSPECTOR_BASE__/assets/httpinspector.css" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HttpInspector</title>
+</head>
+<body data-base-path="__HTTP_INSPECTOR_BASE__" class="theme-dark">
+    <div class="app-root">
+        <header class="app-header">
+            <div class="header-primary">
+                <div class="brand-row">
+                    <div class="brand-copy">
+                        <p class="eyebrow">HttpInspector</p>
+                        <p class="muted">Live HTTP inspector</p>
+                    </div>
+                    <!-- TODO: one day we might want to spend more time implementing white theme. Until then we disable it because it currently looks unfinished -->
+                    <!-- <button type="button" class="theme-toggle" id="themeToggle" aria-pressed="true" aria-label="Toggle light mode">
+                        <span class="theme-toggle-track">
+                            <span class="theme-toggle-icon sun" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                                    <circle cx="12" cy="12" r="4.5" />
+                                    <line x1="12" y1="2" x2="12" y2="5"></line>
+                                    <line x1="12" y1="19" x2="12" y2="22"></line>
+                                    <line x1="4.22" y1="4.22" x2="6.34" y2="6.34"></line>
+                                    <line x1="17.66" y1="17.66" x2="19.78" y2="19.78"></line>
+                                    <line x1="2" y1="12" x2="5" y2="12"></line>
+                                    <line x1="19" y1="12" x2="22" y2="12"></line>
+                                    <line x1="4.22" y1="19.78" x2="6.34" y2="17.66"></line>
+                                    <line x1="17.66" y1="6.34" x2="19.78" y2="4.22"></line>
+                                </svg>
+                            </span>
+                            <span class="theme-toggle-icon moon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                                    <path d="M21 15a8.5 8.5 0 0 1-12-12 9 9 0 1 0 12 12z" />
+                                </svg>
+                            </span>
+                            <span class="theme-toggle-handle" aria-hidden="true"></span>
+                        </span>
+                    </button> -->
+                </div>
+                <div class="header-search">
+                    <label class="search-field" for="searchInput">
+                        <span class="search-icon" aria-hidden="true"></span>
+                        <input id="searchInput" type="search" placeholder="Search by path, ID, or method" autocomplete="off" spellcheck="false" />
+                    </label>
+                </div>
+                <div class="header-actions">
+                    <button type="button" class="help-btn" id="helpButton" aria-haspopup="dialog">?</button>
+                </div>
+            </div>
+            <div class="chip-row">
+                <section class="chip-section time-chip-section">
+                    <div class="chip-group-label">
+                        <p class="chip-label">Time range</p>
+                    </div>
+                    <div class="chip-grid time-quick-group" id="quickTimeButtons">
+                        <button type="button" data-range="all" class="is-active">All</button>
+                        <button type="button" data-range="5m">5m</button>
+                        <button type="button" data-range="1h">1h</button>
+                        <button type="button" data-range="1d">Today</button>
+                    </div>
+                    <div class="time-controls" role="group" aria-label="Time range">
+                        <div class="time-control" data-role="from">
+                            <button type="button" class="time-button" id="fromButton">
+                                <span class="label">From</span>
+                                <span class="value" id="fromLabel">All time</span>
+                            </button>
+                            <div class="time-popover" id="fromPopover">
+                                <div class="popover-header">
+                                    <div>
+                                        <p class="popover-title">From</p>
+                                        <p class="popover-subtitle">Pick where the timeline should start.</p>
+                                    </div>
+                                </div>
+                                <div class="time-mode-group">
+                                    <label class="time-mode-option">
+                                        <input type="radio" name="fromMode" value="all" checked />
+                                        All time
+                                    </label>
+                                    <label class="time-mode-option">
+                                        <input type="radio" name="fromMode" value="relative" />
+                                        Relative
+                                    </label>
+                                    <label class="time-mode-option">
+                                        <input type="radio" name="fromMode" value="absolute" />
+                                        Specific date
+                                    </label>
+                                </div>
+                                <div class="time-section" data-owner="from" data-panel="relative">
+                                    <p class="section-label">Relative offset</p>
+                                    <div class="relative-fields">
+                                        <label>
+                                            Days
+                                            <input type="number" id="fromRelativeDays" min="0" value="0" />
+                                        </label>
+                                        <label>
+                                            Hours
+                                            <input type="number" id="fromRelativeHours" min="0" max="23" value="1" />
+                                        </label>
+                                        <label>
+                                            Minutes
+                                            <input type="number" id="fromRelativeMinutes" min="0" max="59" value="0" />
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="time-section" data-owner="from" data-panel="absolute">
+                                    <p class="section-label">Specific moment</p>
+                                    <input type="datetime-local" id="fromAbsolute" />
+                                </div>
+                                <div class="popover-actions">
+                                    <button type="button" class="ghost" data-cancel="from">Cancel</button>
+                                    <button type="button" class="primary" data-apply="from">Apply</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="time-control" data-role="to">
+                            <button type="button" class="time-button live" id="toButton">
+                                <span class="label">To</span>
+                                <span class="value" id="toLabel">Live</span>
+                            </button>
+                            <div class="time-popover" id="toPopover">
+                                <div class="popover-header">
+                                    <div>
+                                        <p class="popover-title">To</p>
+                                        <p class="popover-subtitle">Control where the range ends.</p>
+                                    </div>
+                                </div>
+                                <div class="time-mode-group">
+                                    <label class="time-mode-option">
+                                        <input type="radio" name="toMode" value="now" checked />
+                                        Now
+                                    </label>
+                                    <label class="time-mode-option">
+                                        <input type="radio" name="toMode" value="relative" />
+                                        Relative
+                                    </label>
+                                    <label class="time-mode-option">
+                                        <input type="radio" name="toMode" value="absolute" />
+                                        Specific date
+                                    </label>
+                                </div>
+                                <div class="time-section" data-owner="to" data-panel="relative">
+                                    <p class="section-label">Relative offset</p>
+                                    <div class="relative-fields">
+                                        <label>
+                                            Days
+                                            <input type="number" id="toRelativeDays" min="0" value="0" />
+                                        </label>
+                                        <label>
+                                            Hours
+                                            <input type="number" id="toRelativeHours" min="0" max="23" value="0" />
+                                        </label>
+                                        <label>
+                                            Minutes
+                                            <input type="number" id="toRelativeMinutes" min="0" max="59" value="0" />
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="time-section" data-owner="to" data-panel="absolute">
+                                    <p class="section-label">Specific moment</p>
+                                    <input type="datetime-local" id="toAbsolute" />
+                                </div>
+                                <div class="popover-actions">
+                                    <button type="button" class="ghost" data-cancel="to">Cancel</button>
+                                    <button type="button" class="primary" data-apply="to">Apply</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chip-grid time-quick-group" id="clearTimelineButton">
+                        <button type="button" data-purge="clearScreen">Clear Screen</button>
+                        <button type="button" class="new-request-btn" id="newRequestButton" aria-haspopup="dialog">
+                            <span class="icon-send">➤</span> New Request
+                        </button>
+                    </div>
+                </section>
+                <section class="chip-section">
+                    <p class="chip-label">Methods</p>
+                    <div class="segment-control" id="methodFilterChips" role="group" aria-label="HTTP methods">
+                        <button type="button" data-method="" class="segment-btn is-active">All</button>
+                        <button type="button" data-method="GET" class="segment-btn">GET</button>
+                        <button type="button" data-method="POST" class="segment-btn">POST</button>
+                        <button type="button" data-method="PUT" class="segment-btn">PUT</button>
+                        <button type="button" data-method="DELETE" class="segment-btn">DELETE</button>
+                        <button type="button" data-method="PATCH" class="segment-btn">PATCH</button>
+                        <button type="button" data-method="HEAD" class="segment-btn">HEAD</button>
+                        <button type="button" data-method="OPTIONS" class="segment-btn">OPTIONS</button>
+                    </div>
+
+                    <p class="chip-label">Status</p>
+                    <div class="segment-control" id="statusFilterChips" role="group" aria-label="HTTP status codes">
+                        <button type="button" data-status="" class="segment-btn is-active">All</button>
+                        <button type="button" data-status="2" class="segment-btn">2XX</button>
+                        <button type="button" data-status="3" class="segment-btn">3XX</button>
+                        <button type="button" data-status="4" class="segment-btn">4XX</button>
+                        <button type="button" data-status="5" class="segment-btn">5XX</button>
+                    </div>
+                </section>
+            </div>
+        </header>
+        <main class="app-main vsplit" id="mainSplit">
+            <section class="requests-list" id="logList" aria-label="Request timeline">
+                <p class="muted">Waiting for traffic...</p>
+            </section>
+            <div id="splitHandle" class="split-handle" role="separator" aria-orientation="horizontal" aria-label="Resize details panel" tabindex="0"></div>
+            <section class="detail-panel details-panel" id="detailPanel">
+                <p class="muted">Select a request to inspect.</p>
+            </section>
+        </main>
+    </div>
+
+    <div class="help-modal" id="helpModal" hidden>
+        <div class="help-dialog" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+            <div class="help-header">
+                <h2 id="helpTitle">Shortcuts</h2>
+                <button type="button" class="close-help" id="closeHelpButton">Close</button>
+            </div>
+            <ul>
+                <li><span>Ctrl + F</span><span>Focus search</span></li>
+                <li><span>Shift + L</span><span>Clear timeline</span></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="replay-modal" id="replayModal" hidden>
+        <div class="replay-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="replayModalTitle">
+            <div class="replay-modal-header">
+                <h2 id="replayModalTitle">Request Replay Editor</h2>
+                <button type="button" class="close-replay-modal" id="closeReplayModal" aria-label="Close replay editor">×</button>
+            </div>
+            <div class="replay-modal-content" id="replayModalContent">
+                <p class="muted">Loading editor...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="replay-modal" id="newRequestModal" hidden>
+        <div class="replay-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="newRequestModalTitle">
+            <div class="replay-modal-header">
+                <h2 id="newRequestModalTitle">New Request</h2>
+                <button type="button" class="close-replay-modal" id="closeNewRequestModal" aria-label="Close new request editor">×</button>
+            </div>
+            <div class="replay-modal-content" id="newRequestModalContent">
+                <p class="muted">Loading editor...</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="__HTTP_INSPECTOR_BASE__/assets/httpinspector.js"></script>
+</body>
+</html>
+
+
+
+
+

@@ -30,6 +30,24 @@ app.MapGet("/api/external", async (IHttpClientFactory factory) =>
     var payload = await response.Content.ReadAsStringAsync();
     return Results.Text(payload, "application/json");
 });
+app.MapPost("/api/echo", async (HttpRequest request) =>
+{
+    using var reader = new StreamReader(request.Body);
+    var body = await reader.ReadToEndAsync();
+    var bodyObj = new { Echo = System.Text.Json.JsonSerializer.Deserialize<dynamic>(body), Id = Guid.NewGuid() };
+    return TypedResults.Ok(bodyObj);
+});
+app.MapPut("/api/echo", async (HttpRequest request) =>
+{
+    using var reader = new StreamReader(request.Body);
+    var body = await reader.ReadToEndAsync();
+    var bodyObj = new { Echo = System.Text.Json.JsonSerializer.Deserialize<dynamic>(body), Id = Guid.NewGuid() };
+    return TypedResults.Ok(bodyObj);
+});
+app.MapDelete("/api/echo/{id:int}", async (int id) =>
+{
+    return TypedResults.Text($"Deleted {id}");
+});
 
 app.UseHttpInspector(store =>
 {

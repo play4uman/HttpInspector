@@ -12,8 +12,8 @@
     <Description>Plug-and-play HTTP inspector middleware with embedded UI and file-backed storage for ASP.NET Core.</Description>
     <PackageTags>aspnetcore;logging;middleware;developer-tools</PackageTags>
     <Authors>HttpInspector</Authors>
-    <PackageProjectUrl>https://github.com/httpinspector/HttpInspector</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/httpinspector/HttpInspector.git</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/play4uman/HttpInspector</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/play4uman/HttpInspector.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
